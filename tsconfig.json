@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "target": "ES2023",
+    "outDir": "./dist",
+    "rootDir": "./src",
+    
+    /* SOLUCIÓN REAL: Quitamos baseUrl y usamos alias absolutos con @ */
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "strict": true, 
+    "skipLibCheck": true,
+    "noImplicitAny": true /* Cámbialo a true para finanzas, créeme */
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}
