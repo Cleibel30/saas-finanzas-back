@@ -4,7 +4,8 @@
     "moduleResolution": "nodenext",
     "target": "ES2023",
     "outDir": "./dist",
-    "rootDir": "./src",
+    "rootDirs": ["./src", "./"],
+    "types": ["node", "jest"],
     
     /* SOLUCIÓN REAL: Quitamos baseUrl y usamos alias absolutos con @ */
     "paths": {
@@ -20,6 +21,6 @@
     "skipLibCheck": true,
     "noImplicitAny": true /* Cámbialo a true para finanzas, créeme */
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "prisma.config.ts"],
   "exclude": ["node_modules", "dist"]
 }

@@ -1,0 +1,182 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+}
+
+// --- ENUMS ---
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+enum CategoryType {
+  OPERATING
+  INVESTING
+  FINANCING
+}
+
+enum FlowDirection {
+  INFLOW
+  OUTFLOW
+}
+
+enum ItemType {
+  PRODUCT
+  SERVICE
+}
+
+enum BatchStatus {
+  OPEN
+  CLOSED
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+}
+
+// --- MODELS ---
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  name         String
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  tokenBalance Int      @default(0) @map("token_balance")
+  isRemoved    Boolean  @default(false) @map("is_removed")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  subscriptions Subscription[]
+  companies     Company[]
+
+  @@map("users")
+}
+
+model Plan {
+  id           String   @id @default(uuid()) @db.Uuid
+  name         String
+  maxCompanies Int      @map("max_companies")
+  price        Decimal  @db.Decimal(10, 2)
+  isPremium    Boolean  @default(false) @map("is_premium")
+  isRemoved    Boolean  @default(false) @map("is_removed")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  subscriptions Subscription[]
+
+  @@map("plans")
+}
+
+model Subscription {
+  id        String             @id @default(uuid()) @db.Uuid
+  userId    String             @map("user_id") @db.Uuid
+  planId    String             @map("plan_id") @db.Uuid
+  status    SubscriptionStatus
+  endDate   DateTime           @map("end_date")
+  isRemoved Boolean            @default(false) @map("is_removed")
+  createdAt DateTime           @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+  plan Plan @relation(fields: [planId], references: [id])
+
+  @@map("subscriptions")
+}
+
+model Company {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  name      String
+  isRemoved Boolean  @default(false) @map("is_removed")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  categories        Category[]
+  items             Item[]
+  productionBatches ProductionBatch[]
+  transactions      Transaction[]
+
+  @@map("companies")
+}
+
+model Category {
+  id            String        @id @default(uuid()) @db.Uuid
+  companyId     String?       @map("company_id") @db.Uuid
+  name          String
+  type          CategoryType
+  flowDirection FlowDirection @map("flow_direction")
+  isCogs        Boolean       @default(false) @map("is_cogs")
+  isDefault     Boolean       @default(false) @map("is_default")
+  isRemoved     Boolean       @default(false) @map("is_removed")
+  createdAt     DateTime      @default(now()) @map("created_at")
+
+  company      Company?      @relation(fields: [companyId], references: [id])
+  transactions Transaction[]
+
+  @@map("categories")
+}
+
+model Item {
+  id           String   @id @default(uuid()) @db.Uuid
+  companyId    String   @map("company_id") @db.Uuid
+  name         String
+  type         ItemType
+  basePrice    Decimal  @map("base_price") @db.Decimal(10, 2)
+  stockCurrent Int      @default(0) @map("stock_current")
+  isVariable   Boolean  @default(false) @map("is_variable")
+  isRemoved    Boolean  @default(false) @map("is_removed")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  company           Company           @relation(fields: [companyId], references: [id])
+  productionBatches ProductionBatch[]
+  transactions      Transaction[]
+
+  @@map("items")
+}
+
+model ProductionBatch {
+  id        String      @id @default(uuid()) @db.Uuid
+  companyId String      @map("company_id") @db.Uuid
+  itemId    String      @map("item_id") @db.Uuid
+  quantity  Int
+  status    BatchStatus
+  isRemoved Boolean     @default(false) @map("is_removed")
+  createdAt DateTime    @default(now()) @map("created_at")
+
+  company      Company       @relation(fields: [companyId], references: [id])
+  item         Item          @relation(fields: [itemId], references: [id])
+  transactions Transaction[]
+
+  @@map("production_batches")
+}
+
+model Transaction {
+  id          String            @id @default(uuid()) @db.Uuid
+  companyId   String            @map("company_id") @db.Uuid
+  categoryId  String            @map("category_id") @db.Uuid
+  itemId      String?           @map("item_id") @db.Uuid
+  batchId     String?           @map("batch_id") @db.Uuid
+  quantity    Int?
+  unitPrice   Decimal?          @map("unit_price") @db.Decimal(10, 2)
+  dollarRate   Decimal          @default(0) @map("dollar_rate") @db.Decimal(10, 2)
+  amount      Decimal           @db.Decimal(10, 2)
+  amountBs      Decimal         @default(0) @map("amount_bs") @db.Decimal(10, 2)
+  status      TransactionStatus
+  description String?
+  paymentDate DateTime?         @map("payment_date")
+  isRemoved   Boolean           @default(false) @map("is_removed")
+  createdAt   DateTime          @default(now()) @map("created_at")
+
+  company  Company          @relation(fields: [companyId], references: [id])
+  category Category         @relation(fields: [categoryId], references: [id])
+  item     Item?            @relation(fields: [itemId], references: [id])
+  batch    ProductionBatch? @relation(fields: [batchId], references: [id])
+
+  @@map("transactions")
+}
