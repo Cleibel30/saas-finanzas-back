@@ -9,6 +9,9 @@ import { TransactionModule } from './transaction/transaction.module';
 import { CategoryModule } from './category/category.module';
 import { ItemModule } from './item/item.module';
 import { ProductionBatchModule } from './production_batch/production_batch.module';
+import { CashFlowModule } from './cash-flow/cash-flow.module';
+import { ContributionMarginModule } from './contribution-margin/contribution-margin.module';
+import { BalancePointModule } from './balance-point/balance-point.module';
 
 
 @Module({
@@ -23,6 +26,9 @@ import { ProductionBatchModule } from './production_batch/production_batch.modul
     CategoryModule,
     ItemModule,
     ProductionBatchModule,
+    CashFlowModule,
+    ContributionMarginModule,
+    BalancePointModule,
 
   ],
   controllers: [AppController],

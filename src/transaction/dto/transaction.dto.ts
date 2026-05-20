@@ -44,6 +44,7 @@ export class CreateTransactionDto {
   @IsDateString()
   @IsOptional()
   paymentDate?: string;
+
 }
 
 export class getCashFlowDto {

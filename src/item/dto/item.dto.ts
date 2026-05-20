@@ -20,9 +20,6 @@ export class CreateItemDto {
     @IsNumber()
     @Min(0)
     stockCurrent?: number;
-    
-    @IsBoolean()
-    isVariable!: boolean;
 }
 
 export class UpdateItemDto {
@@ -41,7 +38,4 @@ export class UpdateItemDto {
     @IsNumber()
     @Min(0)
     stockCurrent?: number;
-
-    @IsBoolean()
-    isVariable?: boolean;
 }

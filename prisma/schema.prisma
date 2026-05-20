@@ -112,6 +112,7 @@ model Category {
   type          CategoryType
   flowDirection FlowDirection @map("flow_direction")
   isCogs        Boolean       @default(false) @map("is_cogs")
+  isVariable    Boolean        @default(false) @map("is_variable")
   isDefault     Boolean       @default(false) @map("is_default")
   isRemoved     Boolean       @default(false) @map("is_removed")
   createdAt     DateTime      @default(now()) @map("created_at")
@@ -129,7 +130,6 @@ model Item {
   type         ItemType
   basePrice    Decimal  @map("base_price") @db.Decimal(10, 2)
   stockCurrent Int      @default(0) @map("stock_current")
-  isVariable   Boolean  @default(false) @map("is_variable")
   isRemoved    Boolean  @default(false) @map("is_removed")
   createdAt    DateTime @default(now()) @map("created_at")
 
@@ -146,6 +146,7 @@ model ProductionBatch {
   itemId    String      @map("item_id") @db.Uuid
   quantity  Int
   status    BatchStatus
+  batchDate  DateTime    @default(now()) @map("batch_date")
   isRemoved Boolean     @default(false) @map("is_removed")
   createdAt DateTime    @default(now()) @map("created_at")
 

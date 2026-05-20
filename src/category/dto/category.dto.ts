@@ -1,6 +1,6 @@
 import { CategoryType } from "@prisma/client";
 import { FlowDirection } from "@prisma/client";
-import { IsEnum, IsNotEmpty, IsString, MaxLength, MinLength } from "class-validator";
+import { IsBoolean, IsEnum, IsNotEmpty, IsString, MaxLength, MinLength } from "class-validator";
 
 export class CreateCategoryDto {
     @IsString()
@@ -14,6 +14,12 @@ export class CreateCategoryDto {
 
     @IsEnum(FlowDirection)
     flowDirection!: FlowDirection;
+
+    @IsBoolean()
+    isVariable?: boolean;
+
+    @IsBoolean()
+    isCogs!: boolean;
 }
 
 
@@ -28,4 +34,10 @@ export class UpdateCategoryDto {
 
     @IsEnum(FlowDirection)
     flowDirection?: FlowDirection;
+
+    @IsBoolean()
+    isVariable?: boolean;
+
+    @IsBoolean()
+    isCogs?: boolean;
 }

@@ -1,6 +1,6 @@
-import { Body, Controller, Get, Param, ParseFloatPipe, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseFloatPipe, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { TransactionService } from './transaction.service';
-import { CreateTransactionDto, getCashFlowDto } from './dto/transaction.dto';
+import { CreateTransactionDto } from './dto/transaction.dto';
 import { AuthGuard } from '@nestjs/passport';
 import { UserDto } from '@/auth/dto/user.dto';
 import { ValidateCompanyGuard } from '@/company/guards/validate-company/validate-company.guard';
@@ -21,19 +21,4 @@ export class TransactionController {
         return this.transactionService.getTransactionsByCompany(companyId, req.user.userId);
     }
 
-    @UseGuards(AuthGuard('jwt'), ValidateCompanyGuard)
-    @Get('total-cashflow/:companyId')
-    async getTotalCashFlow(@Param('companyId') companyId: string) {
-        return this.transactionService.getTotalCashFlow(companyId);
-    }
-
-    @UseGuards(AuthGuard('jwt'), ValidateCompanyGuard)
-    @Get('cashflow/:companyId')
-    async getCashFlow(
-        @Param('companyId') companyId: string,
-        @Req() req: Request & { user: UserDto },
-        @Body() date: getCashFlowDto,
-    ) {
-        return this.transactionService.getCashFlow(companyId, date.startDate, date.endDate);
-    }
 }
