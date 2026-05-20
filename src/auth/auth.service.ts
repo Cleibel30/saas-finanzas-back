@@ -1,7 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, InternalServerErrorException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { LoginDto, RegisterDto } from './dto/auth.dto';
-import { PrismaClient } from '@/generated/prisma';
 import { createClient } from '@supabase/supabase-js';
 import { PrismaService } from '@/prisma/prisma.service';
 
