@@ -12,6 +12,9 @@ import { ProductionBatchModule } from './production_batch/production_batch.modul
 import { CashFlowModule } from './cash-flow/cash-flow.module';
 import { ContributionMarginModule } from './contribution-margin/contribution-margin.module';
 import { BalancePointModule } from './balance-point/balance-point.module';
+import { McpModule } from './mcp/mcp.module';
+import { GroqAgentModule } from './groq-agent/groq-agent.module';
+import { FinanceChatModule } from './finance-chat/finance-chat.module';
 
 
 @Module({
@@ -29,6 +32,9 @@ import { BalancePointModule } from './balance-point/balance-point.module';
     CashFlowModule,
     ContributionMarginModule,
     BalancePointModule,
+    McpModule,
+    GroqAgentModule,
+    FinanceChatModule,
 
   ],
   controllers: [AppController],
