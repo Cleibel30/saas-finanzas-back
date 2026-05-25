@@ -1,12 +1,13 @@
 import { PrismaService } from '@/prisma/prisma.service';
 import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
-import { CreateTransactionDto } from './dto/transaction.dto';
+import { CreateTransactionDto, UpdateTransactionDto } from './dto/transaction.dto';
 
 
 @Injectable()
 export class TransactionService {
     constructor(private prisma: PrismaService) { }
 
+    // 1 Crear transacciones financieras con validaciones avanzadas y manejo de stock dinámico
     async createTransactions(
         data: CreateTransactionDto[],
         companyId: string,
@@ -118,99 +119,8 @@ export class TransactionService {
         });
     }
 
-    // async createTransactions(
-    //     data: CreateTransactionDto[],
-    //     companyId: string,
-    //     dollarRate: number,
-    // ) {
-    //     // Usamos una transacción para asegurar que todo ocurra o nada ocurra
-    //     return await this.prisma.$transaction(async (tx) => {
-    //         const results = [];
-
-    //         for (const t of data) {
-    //             // 1. Si la transacción incluye un item, validar coherencia y existencia
-    //             if (t.itemId) {
-    //                 const item = await tx.item.findUnique({
-    //                     where: { id: t.itemId, companyId, isRemoved: false } // Aseguramos que el item pertenezca a la misma empresa,
-    //                 });
-
-    //                 if (!item) {
-    //                     throw new BadRequestException(`El ítem con ID ${t.itemId} no existe.`);
-    //                 }
-
-    //                 const category = await tx.category.findUnique({
-    //                     where: { id: t.categoryId, isRemoved: false }
-    //                 });
-
-    //                 if (!category) throw new NotFoundException(`La categoría con ID ${t.categoryId} no existe.`);
-
-    //                 if (category.companyId !== companyId && category.isDefault === false) {
-    //                     throw new UnauthorizedException(`La categoría no pertenece a la empresa.`);
-    //                 }
-
-    //                 // REGLA: Si incluye un item, la categoría DEBE ser INFLOW (venta/entrada de dinero)
-    //                 if (category.flowDirection !== 'INFLOW') {
-    //                     throw new BadRequestException(
-    //                         `Las transacciones con ítems deben pertenecer a una categoría de entrada (INFLOW).`,
-    //                     );
-    //                 }
-
-    //                 if(t.batchId) {
-    //                     const batch = await tx.productionBatch.findUnique({
-    //                         where: { id: t.batchId, companyId, isRemoved: false }
-    //                     });
-
-    //                     if (!batch) {
-    //                         throw new BadRequestException(`El lote con ID ${t.batchId} no existe.`);
-    //                     }
-    //                 }
-
-    //                 // REGLA: Si el ítem es de tipo PRODUCT, la cantidad es obligatoria
-    //                 if (item.type === 'PRODUCT') {
-    //                     if (!t.quantity || t.quantity <= 0) {
-    //                         throw new BadRequestException(
-    //                             `La cantidad es obligatoria para el producto: ${item.name}`,
-    //                         );
-    //                     }
-
-    //                     // REGLA: Verificar stock suficiente
-    //                     if (item.stockCurrent < t.quantity) {
-    //                         throw new BadRequestException(
-    //                             `Stock insuficiente para ${item.name}. Disponible: ${item.stockCurrent}, Requerido: ${t.quantity}`,
-    //                         );
-    //                     }
-
-    //                     // 2. Restar cantidad del stock del producto
-    //                     await tx.item.update({
-    //                         where: { id: item.id },
-    //                         data: {
-    //                             stockCurrent: { decrement: t.quantity },
-    //                         },
-    //                     });
-    //                 }
-    //             }
-
-    //             // 3. Crear la transacción individualmente dentro de la transacción global
-    //             const transaction = await tx.transaction.create({
-    //                 data: {
-    //                     ...t,
-    //                     companyId,
-    //                     dollarRate,
-    //                     // Aseguramos formato Date para paymentDate
-    //                     paymentDate: t.paymentDate ? new Date(t.paymentDate) : null,
-    //                 },
-    //                 include: { category: true, item: true, batch: true }
-    //                 });
-
-    //             results.push(transaction);
-    //         }
-
-    //         return results;
-    //     });
-    // }
-
-
-    async getTransactionsByCompany(companyId: string, userId: string) {
+    //2 Obtener lista de todas las transacciones
+    async getTransactionsByCompany(companyId: string) {
 
         return this.prisma.transaction.findMany({
             where: { companyId, isRemoved: false },
@@ -219,7 +129,99 @@ export class TransactionService {
         });
     }
 
+    //3 Obtener la informacion de una transaccion
+    async getTransactionById(id: string, companyId: string) {
+        const transaction = await this.prisma.transaction.findFirst({
+            where: { id, companyId, isRemoved: false },
+            include: { category: true, item: true, batch: true }
+        });
 
+        if (!transaction) {
+            throw new NotFoundException(`La transacción con ID ${id} no existe.`);
+        }
+
+        return transaction;
+    }
+
+    //4 Actualizar una transaccion
+    async updateTransaction(id: string, companyId: string, data: UpdateTransactionDto) {
+        const transaction = await this.prisma.transaction.findFirst({
+            where: { id, companyId, isRemoved: false },
+        });
+        if (!transaction) {
+            throw new NotFoundException(`La transacción con ID ${id} no existe.`);
+        }
+
+        return await this.prisma.transaction.update({
+            where: { id },
+            data: { ...data }
+        });
+    }
+
+    //5 Eliminar una transaccion (soft delete)
+    async deleteTransaction(id: string, companyId: string) {
+        const transaction = await this.prisma.transaction.findFirst({
+            where: { id, companyId, isRemoved: false },
+        });
+
+        if (!transaction) {
+            throw new NotFoundException(`La transacción con ID ${id} no existe.`);
+        }
+
+        return await this.prisma.transaction.update({
+            where: { id },
+            data: { isRemoved: true }
+        });
+    }
+
+
+
+    //6 Obtener las transacciones dentro de un rango de fechas específico
+    async getTransactionsByDateRange(companyId: string, startDate: Date, endDate: Date) {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        start.setHours(0, 0, 0, 0);
+        end.setHours(23, 59, 59, 999);
+
+        return this.prisma.transaction.findMany({
+            where: {
+                companyId,
+                isRemoved: false,
+                paymentDate: {
+                    gte: start,
+                    lte: end,
+                }
+            }
+        });
+    }
+
+    //7 Obtener transacciones por categoría específica
+    async getTransactionsByCategory(companyId: string, categoryId: string) {
+
+        const category = await this.prisma.category.findFirst({
+            where: {
+                AND: [
+                    { id: categoryId, isRemoved: false },
+                    {
+                        OR: [
+                            { companyId: companyId }, // Categoría propia de la empresa
+                            { isDefault: true }        // Categoría global del sistema
+                        ]
+                    }
+                ]
+            }
+        });
+
+        if (!category) {
+            throw new NotFoundException(`La categoría con ID ${categoryId} no existe o no pertenece a la empresa.`);
+        }
+
+        return this.prisma.transaction.findMany({
+            where: { companyId, categoryId, isRemoved: false },
+            orderBy: { createdAt: 'desc' },
+            include: { category: true, item: true, batch: true }
+        });
+    }
 }
 
 

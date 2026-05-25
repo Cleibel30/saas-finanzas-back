@@ -2,6 +2,7 @@ import { CompanyService } from '@/company/company.service';
 import { PrismaService } from '@/prisma/prisma.service';
 import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { CreateCategoryDto, UpdateCategoryDto } from './dto/category.dto';
+import { FuzzyCategoryResult } from './interface/category.interface';
 
 @Injectable()
 export class CategoryService {
@@ -16,7 +17,7 @@ export class CategoryService {
             }
         });
 
-        if(alreadyExists) throw new ConflictException('A category with this name already exists in the company.');
+        if (alreadyExists) throw new ConflictException('A category with this name already exists in the company.');
 
         return this.prisma.category.create({
             data: {
@@ -56,19 +57,29 @@ export class CategoryService {
     }
 
     async updateCategory(updateData: UpdateCategoryDto, categoryId: string, userId: string, companyId: string) {
-        const verifyOwnership = await this.companyService.verifyCompanyOwnership(companyId, userId);
-
-        if (!verifyOwnership) throw new UnauthorizedException('You do not have permission to update this category.');
-
         const category = await this.prisma.category.findUnique({
-            where: { id: categoryId, companyId },
+            where: { id: categoryId, companyId, isRemoved: false },
         });
 
         if (!category) throw new UnauthorizedException('Category not found.');
 
         return this.prisma.category.update({
-            where: { id: categoryId, companyId },
+            where: { id: categoryId, companyId, isRemoved: false },
             data: updateData,
         });
+    }
+
+    async getCategoryByName(name: string, companyId: string) {
+        try {
+            const result = await this.prisma.$queryRaw<FuzzyCategoryResult[]>`
+        SELECT * FROM search_category_fuzzy(${name}, ${companyId}::uuid)
+      `;
+
+            // Si encuentra resultados (corrigiendo errores como "operatiba" -> "OPERATING"), devuelve el más cercano
+            return result.length > 0 ? result : null;
+        } catch (error) {
+            console.error('Error en búsqueda difusa de categorías:', error);
+            return null;
+        }
     }
 }

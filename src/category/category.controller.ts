@@ -4,6 +4,7 @@ import { CreateCategoryDto } from './dto/category.dto';
 import { UserDto } from '@/auth/dto/user.dto';
 import { AuthGuard } from '@nestjs/passport';
 import { ValidateCompanyGuard } from '@/company/guards/validate-company/validate-company.guard';
+import { SearchDto } from '@/item/dto/item.dto';
 
 @Controller('category')
 export class CategoryController {
@@ -36,5 +37,11 @@ export class CategoryController {
     async updateCategory(@Body() updateData: CreateCategoryDto, @Param('companyId') companyId: string, @Param('categoryId') categoryId: string, @Req() req: Request & {user: UserDto}) {
         const userId = req.user.userId;
         return this.categoryService.updateCategory(updateData, categoryId, userId, companyId);
+    }
+
+    @UseGuards(AuthGuard('jwt'), ValidateCompanyGuard)
+    @Get('get-by-name/:name/:companyId')
+    async getCategoryByName(@Param() params: SearchDto) {
+        return this.categoryService.getCategoryByName(params.name, params.companyId);
     }
 }

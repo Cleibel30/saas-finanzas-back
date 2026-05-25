@@ -1,6 +1,6 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { ItemService } from './item.service';
-import { CreateItemDto, UpdateItemDto } from './dto/item.dto';
+import { CreateItemDto, SearchDto, UpdateItemDto } from './dto/item.dto';
 import { AuthGuard } from '@nestjs/passport';
 import { ValidateCompanyGuard } from '@/company/guards/validate-company/validate-company.guard';
 
@@ -24,5 +24,29 @@ export class ItemController {
     @Get('get-all/:companyId')
     async getItemsByCompany(@Param('companyId') companyId: string) {
         return this.itemService.getItemsByCompany(companyId);
+    }
+
+    @UseGuards(AuthGuard('jwt'), ValidateCompanyGuard)
+    @Delete('delete/:itemId/:companyId')
+    async deleteItem(@Param('itemId') itemId: string, @Param('companyId') companyId: string) {
+        return this.itemService.deleteItem(itemId, companyId);
+    }
+
+    @UseGuards(AuthGuard('jwt'), ValidateCompanyGuard)
+    @Get('get-by-name/:name/:companyId')
+    async getItemByName(@Param() params: SearchDto) {
+        return this.itemService.getItemByName(params.name, params.companyId);
+    }
+
+    @UseGuards(AuthGuard('jwt'), ValidateCompanyGuard)
+    @Get('get-all-products/:companyId')
+    async getAllProducts(@Param('companyId') companyId: string) {
+        return this.itemService.getItemsProduct(companyId);
+    }
+
+    @UseGuards(AuthGuard('jwt'), ValidateCompanyGuard)
+    @Get('get-all-services/:companyId')
+    async getAllServices(@Param('companyId') companyId: string) {
+        return this.itemService.getItemsService(companyId);
     }
 }

@@ -1,5 +1,5 @@
 import { BatchStatus, TransactionStatus } from "@prisma/client";
-import { IsDateString, isNotEmpty } from "class-validator";
+import { IsDateString, isNotEmpty, IsOptional } from "class-validator";
 
 export class CreateBatchWithTransactionsDto {
     quantity!: number;
@@ -19,4 +19,12 @@ export class CreateBatchWithTransactionsDto {
         status: TransactionStatus;
         paymentDate?: Date;
     }[];
+}
+
+export class UpdateBatchDto {
+    @IsOptional()
+    quantity?: number;
+    status?: BatchStatus;
+    @IsDateString()
+    batchDate?: Date;
 }

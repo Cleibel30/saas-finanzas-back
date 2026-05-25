@@ -47,7 +47,66 @@ export class CreateTransactionDto {
 
 }
 
+export class UpdateTransactionDto {
+  @IsUUID()
+  @IsOptional()
+  categoryId?: string;
+
+  @IsUUID()
+  @IsOptional()
+  itemId?: string;
+
+  @IsUUID()
+  @IsOptional()
+  batchId?: string;
+
+  @IsNumber()
+  @IsOptional()
+  quantity?: number;
+
+  @IsNumber()
+  @IsOptional()
+  unitPrice?: number;
+
+  @IsNumber()
+  @IsOptional()
+  amount?: number;
+
+  @IsNumber()
+  @IsOptional()
+  amountBs?: number;
+
+  @IsEnum(TransactionStatus)
+  @IsOptional()
+  status?: TransactionStatus;
+
+  @IsString()
+  @IsOptional()
+  @MinLength(3)
+  @MaxLength(100)
+  description?: string;
+
+  @IsDateString()
+  @IsOptional()
+  paymentDate?: string;
+
+}
+
 export class getCashFlowDto {
+  @IsDateString()
+  @IsNotEmpty()
+  startDate!: Date;
+
+  @IsDateString()
+  @IsNotEmpty()
+  endDate!: Date;
+}
+
+export class GetTransactionsByDateRangeDto {
+  @IsUUID()
+  @IsNotEmpty()
+  companyId!: string;
+
   @IsDateString()
   @IsNotEmpty()
   startDate!: Date;

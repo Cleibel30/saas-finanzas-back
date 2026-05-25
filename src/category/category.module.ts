@@ -7,6 +7,7 @@ import { CompanyModule } from '@/company/company.module';
 @Module({
   controllers: [CategoryController],
   providers: [CategoryService],
-  imports: [PrismaModule, CompanyModule]
+  imports: [PrismaModule, CompanyModule],
+  exports: [CategoryService]
 })
 export class CategoryModule {}
