@@ -9,7 +9,9 @@ describe('ProductionBatchController', () => {
       controllers: [ProductionBatchController],
     }).compile();
 
-    controller = module.get<ProductionBatchController>(ProductionBatchController);
+    controller = module.get<ProductionBatchController>(
+      ProductionBatchController,
+    );
   });
 
   it('should be defined', () => {

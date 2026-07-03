@@ -42,16 +42,40 @@ enum TransactionStatus {
   COMPLETED
 }
 
+enum PaymentMethod {
+  PAGO_MOVIL
+  TARJETA_DEBITO_CREDITO_PUNTO_VENTA
+  TRANSFERENCIA_BANCARIA_NACIONAL
+  EFECTIVO_BOLIVARES
+  EFECTIVO_DIVISAS
+  TRANSFERENCIAS_INTERNACIONALES_DIRECTAS
+  BILLETERAS_ELECTRONICAS_PROCESADORES
+  CRIPTOMONEDAS
+}
+
+enum Currency {
+  BOLIVARES
+  DOLARES
+}
+
 // --- MODELS ---
 
+enum UserRole {
+  USER
+  ADMIN
+}
+
 model User {
-  id           String   @id @default(uuid()) @db.Uuid
+  id           String    @id @default(uuid()) @db.Uuid
   name         String
-  email        String   @unique
-  passwordHash String   @map("password_hash")
-  tokenBalance Int      @default(0) @map("token_balance")
-  isRemoved    Boolean  @default(false) @map("is_removed")
-  createdAt    DateTime @default(now()) @map("created_at")
+  email        String    @unique
+  passwordHash String?   @map("password_hash")
+  role         UserRole  @default(USER) @map("role")
+  tokenBalance Int       @default(0) @map("token_balance")
+  isSuspended  Boolean   @default(false) @map("is_suspended")
+  suspendedAt  DateTime? @map("suspended_at")
+  isRemoved    Boolean   @default(false) @map("is_removed")
+  createdAt    DateTime  @default(now()) @map("created_at")
 
   subscriptions Subscription[]
   companies     Company[]
@@ -89,11 +113,13 @@ model Subscription {
 }
 
 model Company {
-  id        String   @id @default(uuid()) @db.Uuid
-  userId    String   @map("user_id") @db.Uuid
-  name      String
-  isRemoved Boolean  @default(false) @map("is_removed")
-  createdAt DateTime @default(now()) @map("created_at")
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  name        String
+  isSuspended  Boolean   @default(false) @map("is_suspended")
+  suspendedAt  DateTime? @map("suspended_at")
+  isRemoved   Boolean   @default(false) @map("is_removed")
+  createdAt   DateTime  @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id])
 
@@ -120,6 +146,9 @@ model Category {
   company      Company?      @relation(fields: [companyId], references: [id])
   transactions Transaction[]
 
+  @@index([companyId, isRemoved])
+  @@index([name])
+
   @@map("categories")
 }
 
@@ -136,6 +165,10 @@ model Item {
   company           Company           @relation(fields: [companyId], references: [id])
   productionBatches ProductionBatch[]
   transactions      Transaction[]
+
+  @@index([companyId, isRemoved])
+  @@index([companyId, type, isRemoved])
+  @@index([name])
 
   @@map("items")
 }
@@ -154,6 +187,9 @@ model ProductionBatch {
   item         Item          @relation(fields: [itemId], references: [id])
   transactions Transaction[]
 
+  @@index([companyId, isRemoved])
+  @@index([companyId, itemId, isRemoved])
+
   @@map("production_batches")
 }
 
@@ -166,18 +202,27 @@ model Transaction {
   quantity    Int?
   unitPrice   Decimal?          @map("unit_price") @db.Decimal(10, 2)
   dollarRate   Decimal          @default(0) @map("dollar_rate") @db.Decimal(10, 2)
-  amount      Decimal           @db.Decimal(10, 2)
+  amountUSD   Decimal           @map("amount_usd") @db.Decimal(10, 2)
   amountBs      Decimal         @default(0) @map("amount_bs") @db.Decimal(10, 2)
-  status      TransactionStatus
-  description String?
-  paymentDate DateTime?         @map("payment_date")
-  isRemoved   Boolean           @default(false) @map("is_removed")
+  status           TransactionStatus
+  paymentMethod    PaymentMethod      @map("payment_method")
+  currency         Currency
+  paymentReference String?            @map("payment_reference")
+  description      String?
+  paymentDate      DateTime?          @map("payment_date")
+  isRemoved        Boolean            @default(false) @map("is_removed")
   createdAt   DateTime          @default(now()) @map("created_at")
 
   company  Company          @relation(fields: [companyId], references: [id])
   category Category         @relation(fields: [categoryId], references: [id])
   item     Item?            @relation(fields: [itemId], references: [id])
   batch    ProductionBatch? @relation(fields: [batchId], references: [id])
+
+  @@index([companyId, isRemoved, createdAt])
+  @@index([companyId, categoryId, isRemoved])
+  @@index([companyId, itemId, isRemoved])
+  @@index([companyId, status, paymentDate])
+  @@index([paymentDate])
 
   @@map("transactions")
 }

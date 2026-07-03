@@ -1,15 +1,15 @@
-import { IsDateString, IsNotEmpty, IsUUID } from "class-validator";
+import { IsDateString, IsNotEmpty, IsUUID } from 'class-validator';
 
 export class CashFlowDto {
-    @IsUUID()
-    @IsNotEmpty()
-    companyId!: string;
+  @IsUUID()
+  @IsNotEmpty()
+  companyId!: string;
 
-    @IsDateString()
-    @IsNotEmpty()
-    startDate!: Date;
+  @IsDateString()
+  @IsNotEmpty()
+  startDate!: Date;
 
-    @IsDateString()
-    @IsNotEmpty()
-    endDate!: Date;
+  @IsDateString()
+  @IsNotEmpty()
+  endDate!: Date;
 }

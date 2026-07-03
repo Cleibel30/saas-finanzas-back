@@ -1,30 +1,37 @@
-import { BatchStatus, TransactionStatus } from "@prisma/client";
-import { IsDateString, isNotEmpty, IsOptional } from "class-validator";
+import {
+  BatchStatus,
+  TransactionStatus,
+  PaymentMethod,
+  Currency,
+} from '@prisma/client';
+import { IsDateString, IsOptional } from 'class-validator';
 
 export class CreateBatchWithTransactionsDto {
-    quantity!: number;
-    status!: BatchStatus;
+  quantity!: number;
+  status!: BatchStatus;
 
-    @IsDateString()
-    batchDate!: Date;
+  @IsDateString()
+  batchDate!: Date;
 
-    // Lista de transacciones iniciales
-    transactions!: {
-        categoryId: string;
-        dollarRate: number;
-        amount: number;
-        amountBs: number;
-        quantity: number;
-        description?: string;
-        status: TransactionStatus;
-        paymentDate?: Date;
-    }[];
+  // Lista de transacciones iniciales
+  transactions!: {
+    categoryId: string;
+    amount: number;
+    dollarRate: number;
+    quantity: number;
+    paymentMethod: PaymentMethod;
+    currency: Currency;
+    paymentReference?: string;
+    description?: string;
+    status: TransactionStatus;
+    paymentDate?: Date;
+  }[];
 }
 
 export class UpdateBatchDto {
-    @IsOptional()
-    quantity?: number;
-    status?: BatchStatus;
-    @IsDateString()
-    batchDate?: Date;
+  @IsOptional()
+  quantity?: number;
+  status?: BatchStatus;
+  @IsDateString()
+  batchDate?: Date;
 }

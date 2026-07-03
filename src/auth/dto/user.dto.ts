@@ -1,5 +1,5 @@
 export class UserDto {
-    userId!: string;
-    email!: string;
-    name!: string;
+  userId!: string;
+  email!: string;
+  name!: string;
 }

@@ -21,6 +21,6 @@
     "skipLibCheck": true,
     "noImplicitAny": true /* Cámbialo a true para finanzas, créeme */
   },
-  "include": ["src/**/*", "prisma.config.ts"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["src/**/*", "prisma.config.ts", ".agents/skills/nestjs-best-practices/scripts/**/*.ts"],
+  "exclude": ["node_modules", "dist", ".agents"]
 }

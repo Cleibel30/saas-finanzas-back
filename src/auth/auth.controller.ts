@@ -1,26 +1,32 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Req } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto, RegisterDto } from './dto/auth.dto';
-import { AuthGuard } from '@nestjs/passport';
-import { Request } from 'express'; // 1. Importa esto
+import { Request } from 'express';
+import { Public } from '@/common/decorators/public.decorator';
+import { Throttle } from '@nestjs/throttler';
+import { UserDto } from './dto/user.dto';
 
 @Controller('auth')
 export class AuthController {
-    constructor(private readonly authService: AuthService) { }
+  constructor(private readonly authService: AuthService) {}
 
-    @Post('register')
-    async register(@Body() registerDto: RegisterDto) {
-        return this.authService.register(registerDto);
-    }
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post('register')
+  async register(@Body() registerDto: RegisterDto) {
+    return this.authService.register(registerDto);
+  }
 
-    @Post('login')
-    async login(@Body() loginDto: LoginDto) {
-        return this.authService.login(loginDto);
-    }
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Post('login')
+  async login(@Body() loginDto: LoginDto) {
+    return this.authService.login(loginDto);
+  }
 
-    @Get('profile')
-    @UseGuards(AuthGuard('jwt'))
-    async getProfile(@Req() req: Request) {
-        return req.user;
-    }
+  @Get('profile')
+  async getProfile(@Req() req: Request & { user: UserDto }) {
+    const { userId, email, name } = req.user;
+    return { userId, email, name };
+  }
 }

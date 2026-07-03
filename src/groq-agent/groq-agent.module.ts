@@ -1,4 +1,4 @@
-import { forwardRef, Module } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { GroqAgentController } from './groq-agent.controller';
 import { GroqAgentService } from './groq-agent.service';
 import { McpModule } from '@/mcp/mcp.module';
@@ -7,6 +7,6 @@ import { McpModule } from '@/mcp/mcp.module';
   controllers: [GroqAgentController],
   providers: [GroqAgentService],
   exports: [GroqAgentService],
-  imports: [forwardRef(() => McpModule)]
+  imports: [McpModule],
 })
 export class GroqAgentModule {}

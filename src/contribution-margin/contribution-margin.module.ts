@@ -8,6 +8,6 @@ import { CompanyModule } from '@/company/company.module';
   controllers: [ContributionMarginController],
   providers: [ContributionMarginService],
   imports: [PrismaModule, CompanyModule],
-  exports: [ContributionMarginService]
+  exports: [ContributionMarginService],
 })
 export class ContributionMarginModule {}

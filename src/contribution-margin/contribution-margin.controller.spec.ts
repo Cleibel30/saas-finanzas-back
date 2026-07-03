@@ -9,7 +9,9 @@ describe('ContributionMarginController', () => {
       controllers: [ContributionMarginController],
     }).compile();
 
-    controller = module.get<ContributionMarginController>(ContributionMarginController);
+    controller = module.get<ContributionMarginController>(
+      ContributionMarginController,
+    );
   });
 
   it('should be defined', () => {

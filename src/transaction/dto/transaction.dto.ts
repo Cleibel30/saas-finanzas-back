@@ -1,9 +1,19 @@
-// create-transaction.dto.ts
-import { IsUUID, IsNumber, IsEnum, IsOptional, IsDateString, IsNotEmpty, IsString, MinLength, MaxLength } from 'class-validator';
-import { TransactionStatus } from '@prisma/client';
+import {
+  IsUUID,
+  IsNumber,
+  IsEnum,
+  IsOptional,
+  IsDateString,
+  IsNotEmpty,
+  IsString,
+  MinLength,
+  MaxLength,
+  Matches,
+} from 'class-validator';
+import { Type } from 'class-transformer';
+import { TransactionStatus, PaymentMethod, Currency } from '@prisma/client';
 
 export class CreateTransactionDto {
-
   @IsUUID()
   @IsNotEmpty()
   categoryId!: string;
@@ -18,22 +28,40 @@ export class CreateTransactionDto {
 
   @IsNumber()
   @IsOptional()
+  @Type(() => Number)
   quantity?: number;
 
   @IsNumber()
   @IsOptional()
+  @Type(() => Number)
   unitPrice?: number;
 
   @IsNumber()
   @IsNotEmpty()
+  @Type(() => Number)
   amount!: number;
 
   @IsNumber()
   @IsNotEmpty()
-  amountBs!: number;
+  @Type(() => Number)
+  dollarRate!: number;
 
   @IsEnum(TransactionStatus)
   status!: TransactionStatus;
+
+  @IsEnum(PaymentMethod)
+  @IsNotEmpty()
+  paymentMethod!: PaymentMethod;
+
+  @IsEnum(Currency)
+  @IsNotEmpty()
+  currency!: Currency;
+
+  @IsString()
+  @IsOptional()
+  @MinLength(4)
+  @Matches(/^\d+$/, { message: 'paymentReference debe contener solo dígitos' })
+  paymentReference?: string;
 
   @IsString()
   @IsOptional()
@@ -44,7 +72,6 @@ export class CreateTransactionDto {
   @IsDateString()
   @IsOptional()
   paymentDate?: string;
-
 }
 
 export class UpdateTransactionDto {
@@ -62,23 +89,41 @@ export class UpdateTransactionDto {
 
   @IsNumber()
   @IsOptional()
+  @Type(() => Number)
   quantity?: number;
 
   @IsNumber()
   @IsOptional()
+  @Type(() => Number)
   unitPrice?: number;
 
   @IsNumber()
   @IsOptional()
+  @Type(() => Number)
   amount?: number;
 
   @IsNumber()
   @IsOptional()
-  amountBs?: number;
+  @Type(() => Number)
+  dollarRate?: number;
 
   @IsEnum(TransactionStatus)
   @IsOptional()
   status?: TransactionStatus;
+
+  @IsEnum(PaymentMethod)
+  @IsOptional()
+  paymentMethod?: PaymentMethod;
+
+  @IsEnum(Currency)
+  @IsOptional()
+  currency?: Currency;
+
+  @IsString()
+  @IsOptional()
+  @MinLength(4)
+  @Matches(/^\d+$/, { message: 'paymentReference debe contener solo dígitos' })
+  paymentReference?: string;
 
   @IsString()
   @IsOptional()
@@ -89,10 +134,9 @@ export class UpdateTransactionDto {
   @IsDateString()
   @IsOptional()
   paymentDate?: string;
-
 }
 
-export class getCashFlowDto {
+export class GetCashFlowDto {
   @IsDateString()
   @IsNotEmpty()
   startDate!: Date;

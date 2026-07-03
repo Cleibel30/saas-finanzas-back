@@ -9,6 +9,6 @@ import { CompanyModule } from '@/company/company.module';
   controllers: [BalancePointController],
   providers: [BalancePointService],
   imports: [PrismaModule, ContributionMarginModule, CompanyModule],
-  exports: [BalancePointService]
+  exports: [BalancePointService],
 })
 export class BalancePointModule {}

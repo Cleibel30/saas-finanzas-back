@@ -8,6 +8,6 @@ import { CompanyModule } from '@/company/company.module';
   controllers: [CategoryController],
   providers: [CategoryService],
   imports: [PrismaModule, CompanyModule],
-  exports: [CategoryService]
+  exports: [CategoryService],
 })
 export class CategoryModule {}

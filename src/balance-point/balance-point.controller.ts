@@ -5,11 +5,17 @@ import { AuthGuard } from '@nestjs/passport';
 
 @Controller('balance-point')
 export class BalancePointController {
-    constructor(private balancePointService: BalancePointService) {}
+  constructor(private balancePointService: BalancePointService) {}
 
-    @UseGuards(AuthGuard('jwt'), ValidateCompanyGuard)
-    @Get(':companyId/:startDate/:endDate')
-    async getCompanyBreakEven(@Param() params: { companyId: string, startDate: Date, endDate: Date }) {
-        return this.balancePointService.getCompanyBreakEven(params.companyId, params.startDate, params.endDate);
-    }
+  @UseGuards(AuthGuard('jwt'), ValidateCompanyGuard)
+  @Get(':companyId/:startDate/:endDate')
+  async getCompanyBreakEven(
+    @Param() params: { companyId: string; startDate: Date; endDate: Date },
+  ) {
+    return this.balancePointService.getCompanyBreakEven(
+      params.companyId,
+      params.startDate,
+      params.endDate,
+    );
+  }
 }
