@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
 import {
   TransactionStatus,
@@ -44,8 +48,10 @@ export class UnitCostService {
       quantity,
       totalCostUSD: Number(totalCostUSD.toFixed(2)),
       totalCostBs: Number(totalCostBs.toFixed(2)),
-      unitCostUSD: quantity > 0 ? Number((totalCostUSD / quantity).toFixed(2)) : 0,
-      unitCostBs: quantity > 0 ? Number((totalCostBs / quantity).toFixed(2)) : 0,
+      unitCostUSD:
+        quantity > 0 ? Number((totalCostUSD / quantity).toFixed(2)) : 0,
+      unitCostBs:
+        quantity > 0 ? Number((totalCostBs / quantity).toFixed(2)) : 0,
     };
   }
 
@@ -55,7 +61,8 @@ export class UnitCostService {
     });
 
     if (!item) throw new NotFoundException('Product not found.');
-    if (item.type === ItemType.SERVICE) throw new BadRequestException('The specified item is a service.');
+    if (item.type === ItemType.SERVICE)
+      throw new BadRequestException('The specified item is a service.');
 
     const closedBatches = await this.prisma.productionBatch.findMany({
       where: {
@@ -110,8 +117,14 @@ export class UnitCostService {
       totalQuantity,
       totalCostUSD: Number(totalCostUSD.toFixed(2)),
       totalCostBs: Number(totalCostBs.toFixed(2)),
-      weightedAvgUnitCostUSD: totalQuantity > 0 ? Number((totalCostUSD / totalQuantity).toFixed(2)) : 0,
-      weightedAvgUnitCostBs: totalQuantity > 0 ? Number((totalCostBs / totalQuantity).toFixed(2)) : 0,
+      weightedAvgUnitCostUSD:
+        totalQuantity > 0
+          ? Number((totalCostUSD / totalQuantity).toFixed(2))
+          : 0,
+      weightedAvgUnitCostBs:
+        totalQuantity > 0
+          ? Number((totalCostBs / totalQuantity).toFixed(2))
+          : 0,
     };
   }
 

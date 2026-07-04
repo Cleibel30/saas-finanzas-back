@@ -54,7 +54,11 @@ export class CategoryService {
     const where = {
       OR: [{ companyId, isRemoved: false }, { isDefault: true }],
     };
-    const data = await this.prisma.category.findMany({ where, skip, take: limit });
+    const data = await this.prisma.category.findMany({
+      where,
+      skip,
+      take: limit,
+    });
 
     const total = await this.prisma.category.count({ where });
 

@@ -16,7 +16,7 @@ type DbClient = PrismaService | Prisma.TransactionClient;
 
 @Injectable()
 export class TransactionService {
-  constructor(private prisma: PrismaService) { }
+  constructor(private prisma: PrismaService) {}
 
   async assertCategoryForCompany(
     db: DbClient,
@@ -87,18 +87,30 @@ export class TransactionService {
 
   async createTransactions(data: CreateTransactionDto[], companyId: string) {
     const categoryIds = [...new Set(data.map((t) => t.categoryId))];
-    const itemIds = [...new Set(data.filter((t) => t.itemId).map((t) => t.itemId!))];
-    const batchIds = [...new Set(data.filter((t) => t.batchId).map((t) => t.batchId!))];
+    const itemIds = [
+      ...new Set(data.filter((t) => t.itemId).map((t) => t.itemId!)),
+    ];
+    const batchIds = [
+      ...new Set(data.filter((t) => t.batchId).map((t) => t.batchId!)),
+    ];
 
     return await this.prisma.$transaction(async (tx) => {
       // 1. Obtención de datos (secuencial para evitar colisión de conexiones en pg)
-      const categories = await tx.category.findMany({ where: { id: { in: categoryIds }, isRemoved: false } });
-      const items = itemIds.length > 0
-        ? await tx.item.findMany({ where: { id: { in: itemIds }, companyId, isRemoved: false } })
-        : [];
-      const batches = batchIds.length > 0
-        ? await tx.productionBatch.findMany({ where: { id: { in: batchIds }, companyId, isRemoved: false } })
-        : [];
+      const categories = await tx.category.findMany({
+        where: { id: { in: categoryIds }, isRemoved: false },
+      });
+      const items =
+        itemIds.length > 0
+          ? await tx.item.findMany({
+              where: { id: { in: itemIds }, companyId, isRemoved: false },
+            })
+          : [];
+      const batches =
+        batchIds.length > 0
+          ? await tx.productionBatch.findMany({
+              where: { id: { in: batchIds }, companyId, isRemoved: false },
+            })
+          : [];
 
       const categoryMap = new Map(categories.map((c) => [c.id, c]));
       const itemMap = new Map(items.map((i) => [i.id, i]));
@@ -109,15 +121,20 @@ export class TransactionService {
 
       for (const t of data) {
         const category = categoryMap.get(t.categoryId);
-        if (!category) throw new NotFoundException(`Categoría ${t.categoryId} no encontrada.`);
+        if (!category)
+          throw new NotFoundException(
+            `Categoría ${t.categoryId} no encontrada.`,
+          );
 
         // Solo si es PRODUCT y la categoría es de tipo INFLOW (salida de inventario)
         if (t.itemId) {
           const item = itemMap.get(t.itemId);
-          if (!item) throw new BadRequestException(`El ítem ${t.itemId} no existe.`);
+          if (!item)
+            throw new BadRequestException(`El ítem ${t.itemId} no existe.`);
 
           if (item.type === 'PRODUCT' && category.flowDirection === 'INFLOW') {
-            stockToDecrement[t.itemId] = (stockToDecrement[t.itemId] || 0) + (t.quantity ?? 0);
+            stockToDecrement[t.itemId] =
+              (stockToDecrement[t.itemId] || 0) + (t.quantity ?? 0);
           }
         }
       }
@@ -129,7 +146,7 @@ export class TransactionService {
         // Validación estricta de stock
         if (item.stockCurrent < totalDecrement) {
           throw new BadRequestException(
-            `Stock insuficiente para el producto ${item.name}. Disponible: ${item.stockCurrent}, Requerido: ${totalDecrement}`
+            `Stock insuficiente para el producto ${item.name}. Disponible: ${item.stockCurrent}, Requerido: ${totalDecrement}`,
           );
         }
 
@@ -143,7 +160,11 @@ export class TransactionService {
       // 4. SECUENCIAL: Creación de registros de transacciones
       const results = [];
       for (const t of data) {
-        const { amountUSD, amountBs } = this.calculateAmounts(t.amount, t.currency, t.dollarRate);
+        const { amountUSD, amountBs } = this.calculateAmounts(
+          t.amount,
+          t.currency,
+          t.dollarRate,
+        );
 
         const transaction = await tx.transaction.create({
           data: {
@@ -192,7 +213,7 @@ export class TransactionService {
         page,
         limit,
         total,
-        totalPages: Math.ceil(total / limit)
+        totalPages: Math.ceil(total / limit),
       },
     };
   }

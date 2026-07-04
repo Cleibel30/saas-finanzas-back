@@ -7,7 +7,8 @@ import { Pool } from 'pg';
 @Injectable()
 export class PrismaService
   extends PrismaClient
-  implements OnModuleInit, OnModuleDestroy {
+  implements OnModuleInit, OnModuleDestroy
+{
   // src/prisma/prisma.service.ts
   constructor() {
     const pool = new Pool({
