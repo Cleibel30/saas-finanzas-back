@@ -7,13 +7,23 @@ import { Pool } from 'pg';
 @Injectable()
 export class PrismaService
   extends PrismaClient
-  implements OnModuleInit, OnModuleDestroy
-{
+  implements OnModuleInit, OnModuleDestroy {
+  // src/prisma/prisma.service.ts
   constructor() {
-    // Usamos DATABASE_URL (puerto 6543) para las consultas de la app
-    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-    const adapter = new PrismaPg(pool);
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      max: 20, // Aumenta un poco el límite
+      idleTimeoutMillis: 30000, // Aumenta el tiempo de espera
+      connectionTimeoutMillis: 10000, // IMPORTANTE: añade esto
+      allowExitOnIdle: true, // IMPORTANTE: añade esto
+    });
 
+    // Opcional: Esto ayuda a manejar mejor los errores de conexión del pool
+    pool.on('error', (err) => {
+      console.error('Error inesperado en el pool de Postgres:', err);
+    });
+
+    const adapter = new PrismaPg(pool);
     super({ adapter });
   }
 

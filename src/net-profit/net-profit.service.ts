@@ -48,12 +48,10 @@ export class NetProfitService {
   async getNetProfit(companyId: string, startDate: Date, endDate: Date) {
     const { start, end } = this.normalizeDateRange(startDate, endDate);
 
-    const [grossProfit, operatingExpenses, investingExpenses, financingExpenses] = await Promise.all([
-      this.grossProfitService.getGlobalGrossProfit(companyId, startDate, endDate),
-      this.getExpensesByType(companyId, CategoryType.OPERATING, start, end),
-      this.getExpensesByType(companyId, CategoryType.INVESTING, start, end),
-      this.getExpensesByType(companyId, CategoryType.FINANCING, start, end),
-    ]);
+    const grossProfit = await this.grossProfitService.getGlobalGrossProfit(companyId, startDate, endDate);
+    const operatingExpenses = await this.getExpensesByType(companyId, CategoryType.OPERATING, start, end);
+    const investingExpenses = await this.getExpensesByType(companyId, CategoryType.INVESTING, start, end);
+    const financingExpenses = await this.getExpensesByType(companyId, CategoryType.FINANCING, start, end);
 
     const totalExpensesUSD =
       operatingExpenses.amountUSD + investingExpenses.amountUSD + financingExpenses.amountUSD;
@@ -98,70 +96,72 @@ export class NetProfitService {
   async getStatement(companyId: string, startDate: Date, endDate: Date) {
     const { start, end } = this.normalizeDateRange(startDate, endDate);
 
-    const [salesAgg, cogsAgg, operatingAgg, investingAgg, financingAgg] = await Promise.all([
-      this.prisma.transaction.aggregate({
-        _sum: { amountUSD: true, amountBs: true },
-        where: {
-          companyId,
-          status: TransactionStatus.COMPLETED,
-          isRemoved: false,
-          paymentDate: { gte: start, lte: end },
-          category: { flowDirection: FlowDirection.INFLOW },
+    const salesAgg = await this.prisma.transaction.aggregate({
+      _sum: { amountUSD: true, amountBs: true },
+      where: {
+        companyId,
+        status: TransactionStatus.COMPLETED,
+        isRemoved: false,
+        paymentDate: { gte: start, lte: end },
+        category: { flowDirection: FlowDirection.INFLOW },
+      },
+    });
+
+    const cogsAgg = await this.prisma.transaction.aggregate({
+      _sum: { amountUSD: true, amountBs: true },
+      where: {
+        companyId,
+        status: TransactionStatus.COMPLETED,
+        isRemoved: false,
+        paymentDate: { gte: start, lte: end },
+        category: { flowDirection: FlowDirection.OUTFLOW, isCogs: true },
+      },
+    });
+
+    const operatingAgg = await this.prisma.transaction.aggregate({
+      _sum: { amountUSD: true, amountBs: true },
+      where: {
+        companyId,
+        status: TransactionStatus.COMPLETED,
+        isRemoved: false,
+        paymentDate: { gte: start, lte: end },
+        category: {
+          flowDirection: FlowDirection.OUTFLOW,
+          type: CategoryType.OPERATING,
+          isCogs: false,
         },
-      }),
-      this.prisma.transaction.aggregate({
-        _sum: { amountUSD: true, amountBs: true },
-        where: {
-          companyId,
-          status: TransactionStatus.COMPLETED,
-          isRemoved: false,
-          paymentDate: { gte: start, lte: end },
-          category: { flowDirection: FlowDirection.OUTFLOW, isCogs: true },
+      },
+    });
+
+    const investingAgg = await this.prisma.transaction.aggregate({
+      _sum: { amountUSD: true, amountBs: true },
+      where: {
+        companyId,
+        status: TransactionStatus.COMPLETED,
+        isRemoved: false,
+        paymentDate: { gte: start, lte: end },
+        category: {
+          flowDirection: FlowDirection.OUTFLOW,
+          type: CategoryType.INVESTING,
+          isCogs: false,
         },
-      }),
-      this.prisma.transaction.aggregate({
-        _sum: { amountUSD: true, amountBs: true },
-        where: {
-          companyId,
-          status: TransactionStatus.COMPLETED,
-          isRemoved: false,
-          paymentDate: { gte: start, lte: end },
-          category: {
-            flowDirection: FlowDirection.OUTFLOW,
-            type: CategoryType.OPERATING,
-            isCogs: false,
-          },
+      },
+    });
+
+    const financingAgg = await this.prisma.transaction.aggregate({
+      _sum: { amountUSD: true, amountBs: true },
+      where: {
+        companyId,
+        status: TransactionStatus.COMPLETED,
+        isRemoved: false,
+        paymentDate: { gte: start, lte: end },
+        category: {
+          flowDirection: FlowDirection.OUTFLOW,
+          type: CategoryType.FINANCING,
+          isCogs: false,
         },
-      }),
-      this.prisma.transaction.aggregate({
-        _sum: { amountUSD: true, amountBs: true },
-        where: {
-          companyId,
-          status: TransactionStatus.COMPLETED,
-          isRemoved: false,
-          paymentDate: { gte: start, lte: end },
-          category: {
-            flowDirection: FlowDirection.OUTFLOW,
-            type: CategoryType.INVESTING,
-            isCogs: false,
-          },
-        },
-      }),
-      this.prisma.transaction.aggregate({
-        _sum: { amountUSD: true, amountBs: true },
-        where: {
-          companyId,
-          status: TransactionStatus.COMPLETED,
-          isRemoved: false,
-          paymentDate: { gte: start, lte: end },
-          category: {
-            flowDirection: FlowDirection.OUTFLOW,
-            type: CategoryType.FINANCING,
-            isCogs: false,
-          },
-        },
-      }),
-    ]);
+      },
+    });
 
     const salesUSD = Number(salesAgg._sum.amountUSD) || 0;
     const salesBs = Number(salesAgg._sum.amountBs) || 0;

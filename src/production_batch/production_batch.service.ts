@@ -9,6 +9,7 @@ import {
   CreateBatchWithTransactionsDto,
   UpdateBatchDto,
 } from './dto/batch.dto';
+import { delay } from '@/common/utils/delay';
 
 @Injectable()
 export class ProductionBatchService {
@@ -58,6 +59,7 @@ export class ProductionBatchService {
     return await this.prisma.$transaction(async (tx) => {
       if (necesitaDescontarStock) {
         const itemActual = await tx.item.findUnique({ where: { id: itemId } });
+        await delay(1);
 
         if (!itemActual || itemActual.stockCurrent < dto.quantity) {
           throw new BadRequestException(
@@ -69,6 +71,7 @@ export class ProductionBatchService {
           where: { id: itemId },
           data: { stockCurrent: { decrement: dto.quantity } },
         });
+        await delay(1);
       }
 
       return await tx.productionBatch.create({
@@ -118,16 +121,14 @@ export class ProductionBatchService {
   async getBatchesByCompany(companyId: string, page = 1, limit = 50) {
     const skip = (page - 1) * limit;
     const where = { companyId, isRemoved: false };
-    const [data, total] = await Promise.all([
-      this.prisma.productionBatch.findMany({
-        where,
-        include: { item: true },
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit,
-      }),
-      this.prisma.productionBatch.count({ where }),
-    ]);
+    const data = await this.prisma.productionBatch.findMany({
+      where,
+      include: { item: true },
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit,
+    });
+    const total = await this.prisma.productionBatch.count({ where });
     return {
       data,
       meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
@@ -143,23 +144,20 @@ export class ProductionBatchService {
   ) {
     const skip = (page - 1) * limit;
     const where = { companyId, itemId, isRemoved: false };
-    const [data, total] = await Promise.all([
-      this.prisma.productionBatch.findMany({
-        where,
-        include: { item: true },
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit,
-      }),
-      this.prisma.productionBatch.count({ where }),
-    ]);
+    const data = await this.prisma.productionBatch.findMany({
+      where,
+      include: { item: true },
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit,
+    });
+    const total = await this.prisma.productionBatch.count({ where });
     return {
       data,
       meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
     };
   }
 
-  //Obtener un lote específico por su ID
   async getBatchById(batchId: string, companyId: string) {
     const batch = await this.prisma.productionBatch.findFirst({
       where: { id: batchId, companyId, isRemoved: false },

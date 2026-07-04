@@ -1,3 +1,15 @@
+process.on('warning', (warning) => {
+  if (
+    warning.name === 'DeprecationWarning' &&
+    warning.message.includes(
+      'Calling client.query() when the client is already executing a query',
+    )
+  ) {
+    return;
+  }
+  console.warn(warning);
+});
+
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';

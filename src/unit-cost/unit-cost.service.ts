@@ -124,28 +124,27 @@ export class UnitCostService {
     if (item.type === ItemType.PRODUCT)
       throw new BadRequestException('The specified item is not a service.');
 
-    const [outflowAgg, inflowAgg] = await Promise.all([
-      this.prisma.transaction.aggregate({
-        _sum: { amountUSD: true, amountBs: true },
-        where: {
-          itemId,
-          companyId,
-          status: TransactionStatus.COMPLETED,
-          isRemoved: false,
-          category: { flowDirection: FlowDirection.OUTFLOW },
-        },
-      }),
-      this.prisma.transaction.aggregate({
-        _sum: { quantity: true },
-        where: {
-          itemId,
-          companyId,
-          status: TransactionStatus.COMPLETED,
-          isRemoved: false,
-          category: { flowDirection: FlowDirection.INFLOW },
-        },
-      }),
-    ]);
+    const outflowAgg = await this.prisma.transaction.aggregate({
+      _sum: { amountUSD: true, amountBs: true },
+      where: {
+        itemId,
+        companyId,
+        status: TransactionStatus.COMPLETED,
+        isRemoved: false,
+        category: { flowDirection: FlowDirection.OUTFLOW },
+      },
+    });
+
+    const inflowAgg = await this.prisma.transaction.aggregate({
+      _sum: { quantity: true },
+      where: {
+        itemId,
+        companyId,
+        status: TransactionStatus.COMPLETED,
+        isRemoved: false,
+        category: { flowDirection: FlowDirection.INFLOW },
+      },
+    });
 
     const totalCostUSD = Number(outflowAgg._sum.amountUSD) || 0;
     const totalCostBs = Number(outflowAgg._sum.amountBs) || 0;

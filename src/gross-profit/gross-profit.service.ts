@@ -17,28 +17,27 @@ export class GrossProfitService {
   async getGlobalGrossProfit(companyId: string, startDate: Date, endDate: Date) {
     const { start, end } = this.normalizeDateRange(startDate, endDate);
 
-    const [salesAgg, cogsAgg] = await Promise.all([
-      this.prisma.transaction.aggregate({
-        _sum: { amountUSD: true, amountBs: true },
-        where: {
-          companyId,
-          status: TransactionStatus.COMPLETED,
-          isRemoved: false,
-          paymentDate: { gte: start, lte: end },
-          category: { flowDirection: FlowDirection.INFLOW },
-        },
-      }),
-      this.prisma.transaction.aggregate({
-        _sum: { amountUSD: true, amountBs: true },
-        where: {
-          companyId,
-          status: TransactionStatus.COMPLETED,
-          isRemoved: false,
-          paymentDate: { gte: start, lte: end },
-          category: { flowDirection: FlowDirection.OUTFLOW, isCogs: true },
-        },
-      }),
-    ]);
+    const salesAgg = await this.prisma.transaction.aggregate({
+      _sum: { amountUSD: true, amountBs: true },
+      where: {
+        companyId,
+        status: TransactionStatus.COMPLETED,
+        isRemoved: false,
+        paymentDate: { gte: start, lte: end },
+        category: { flowDirection: FlowDirection.INFLOW },
+      },
+    });
+
+    const cogsAgg = await this.prisma.transaction.aggregate({
+      _sum: { amountUSD: true, amountBs: true },
+      where: {
+        companyId,
+        status: TransactionStatus.COMPLETED,
+        isRemoved: false,
+        paymentDate: { gte: start, lte: end },
+        category: { flowDirection: FlowDirection.OUTFLOW, isCogs: true },
+      },
+    });
 
     const netSales = Number(salesAgg._sum.amountUSD) || 0;
     const netSalesBs = Number(salesAgg._sum.amountBs) || 0;
@@ -69,30 +68,29 @@ export class GrossProfitService {
 
     const { start, end } = this.normalizeDateRange(startDate, endDate);
 
-    const [salesAgg, cogsAgg] = await Promise.all([
-      this.prisma.transaction.aggregate({
-        _sum: { amountUSD: true, amountBs: true, quantity: true },
-        where: {
-          itemId,
-          companyId,
-          status: TransactionStatus.COMPLETED,
-          isRemoved: false,
-          paymentDate: { gte: start, lte: end },
-          category: { flowDirection: FlowDirection.INFLOW },
-        },
-      }),
-      this.prisma.transaction.aggregate({
-        _sum: { amountUSD: true, amountBs: true, quantity: true },
-        where: {
-          itemId,
-          companyId,
-          status: TransactionStatus.COMPLETED,
-          isRemoved: false,
-          paymentDate: { gte: start, lte: end },
-          category: { flowDirection: FlowDirection.OUTFLOW, isCogs: true },
-        },
-      }),
-    ]);
+    const salesAgg = await this.prisma.transaction.aggregate({
+      _sum: { amountUSD: true, amountBs: true, quantity: true },
+      where: {
+        itemId,
+        companyId,
+        status: TransactionStatus.COMPLETED,
+        isRemoved: false,
+        paymentDate: { gte: start, lte: end },
+        category: { flowDirection: FlowDirection.INFLOW },
+      },
+    });
+
+    const cogsAgg = await this.prisma.transaction.aggregate({
+      _sum: { amountUSD: true, amountBs: true, quantity: true },
+      where: {
+        itemId,
+        companyId,
+        status: TransactionStatus.COMPLETED,
+        isRemoved: false,
+        paymentDate: { gte: start, lte: end },
+        category: { flowDirection: FlowDirection.OUTFLOW, isCogs: true },
+      },
+    });
 
     const netSales = Number(salesAgg._sum.amountUSD) || 0;
     const netSalesBs = Number(salesAgg._sum.amountBs) || 0;
@@ -135,30 +133,29 @@ export class GrossProfitService {
 
     const { start, end } = this.normalizeDateRange(startDate, endDate);
 
-    const [salesAgg, cogsAgg] = await Promise.all([
-      this.prisma.transaction.aggregate({
-        _sum: { amountUSD: true, amountBs: true, quantity: true },
-        where: {
-          itemId,
-          companyId,
-          status: TransactionStatus.COMPLETED,
-          isRemoved: false,
-          paymentDate: { gte: start, lte: end },
-          category: { flowDirection: FlowDirection.INFLOW },
-        },
-      }),
-      this.prisma.transaction.aggregate({
-        _sum: { amountUSD: true, amountBs: true },
-        where: {
-          itemId,
-          companyId,
-          status: TransactionStatus.COMPLETED,
-          isRemoved: false,
-          paymentDate: { gte: start, lte: end },
-          category: { flowDirection: FlowDirection.OUTFLOW, isCogs: true },
-        },
-      }),
-    ]);
+    const salesAgg = await this.prisma.transaction.aggregate({
+      _sum: { amountUSD: true, amountBs: true, quantity: true },
+      where: {
+        itemId,
+        companyId,
+        status: TransactionStatus.COMPLETED,
+        isRemoved: false,
+        paymentDate: { gte: start, lte: end },
+        category: { flowDirection: FlowDirection.INFLOW },
+      },
+    });
+
+    const cogsAgg = await this.prisma.transaction.aggregate({
+      _sum: { amountUSD: true, amountBs: true },
+      where: {
+        itemId,
+        companyId,
+        status: TransactionStatus.COMPLETED,
+        isRemoved: false,
+        paymentDate: { gte: start, lte: end },
+        category: { flowDirection: FlowDirection.OUTFLOW, isCogs: true },
+      },
+    });
 
     const netSales = Number(salesAgg._sum.amountUSD) || 0;
     const netSalesBs = Number(salesAgg._sum.amountBs) || 0;

@@ -18,50 +18,45 @@ export class CashFlowService {
           OUTFLOW: '#F44336',
         };
 
-        // 1. Summary aggregates - 4 atomic queries instead of loading all rows
-        const [
-          completedInflow,
-          completedOutflow,
-          pendingInflow,
-          pendingOutflow,
-        ] = await Promise.all([
-          this.prisma.transaction.aggregate({
-            _sum: { amountUSD: true, amountBs: true },
-            where: {
-              companyId,
-              status: 'COMPLETED',
-              isRemoved: false,
-              category: { flowDirection: 'INFLOW' },
-            },
-          }),
-          this.prisma.transaction.aggregate({
-            _sum: { amountUSD: true, amountBs: true },
-            where: {
-              companyId,
-              status: 'COMPLETED',
-              isRemoved: false,
-              category: { flowDirection: 'OUTFLOW' },
-            },
-          }),
-          this.prisma.transaction.aggregate({
-            _sum: { amountUSD: true, amountBs: true },
-            where: {
-              companyId,
-              status: 'PENDING',
-              isRemoved: false,
-              category: { flowDirection: 'INFLOW' },
-            },
-          }),
-          this.prisma.transaction.aggregate({
-            _sum: { amountUSD: true, amountBs: true },
-            where: {
-              companyId,
-              status: 'PENDING',
-              isRemoved: false,
-              category: { flowDirection: 'OUTFLOW' },
-            },
-          }),
-        ]);
+        const completedInflow = await this.prisma.transaction.aggregate({
+          _sum: { amountUSD: true, amountBs: true },
+          where: {
+            companyId,
+            status: 'COMPLETED',
+            isRemoved: false,
+            category: { flowDirection: 'INFLOW' },
+          },
+        });
+
+        const completedOutflow = await this.prisma.transaction.aggregate({
+          _sum: { amountUSD: true, amountBs: true },
+          where: {
+            companyId,
+            status: 'COMPLETED',
+            isRemoved: false,
+            category: { flowDirection: 'OUTFLOW' },
+          },
+        });
+
+        const pendingInflow = await this.prisma.transaction.aggregate({
+          _sum: { amountUSD: true, amountBs: true },
+          where: {
+            companyId,
+            status: 'PENDING',
+            isRemoved: false,
+            category: { flowDirection: 'INFLOW' },
+          },
+        });
+
+        const pendingOutflow = await this.prisma.transaction.aggregate({
+          _sum: { amountUSD: true, amountBs: true },
+          where: {
+            companyId,
+            status: 'PENDING',
+            isRemoved: false,
+            category: { flowDirection: 'OUTFLOW' },
+          },
+        });
 
         const ciUsd = Number(completedInflow._sum.amountUSD) || 0;
         const ciBs = Number(completedInflow._sum.amountBs) || 0;
@@ -217,69 +212,69 @@ export class CashFlowService {
           OUTFLOW: '#F44336',
         };
 
-        const [inflowAgg, outflowAgg, statementRows, records] =
-          await Promise.all([
-            this.prisma.transaction.aggregate({
-              _sum: { amountUSD: true, amountBs: true },
-              where: {
-                companyId,
-                isRemoved: false,
-                status: 'COMPLETED',
-                paymentDate: { gte: start, lte: end },
-                category: { flowDirection: 'INFLOW' },
-              },
-            }),
-            this.prisma.transaction.aggregate({
-              _sum: { amountUSD: true, amountBs: true },
-              where: {
-                companyId,
-                isRemoved: false,
-                status: 'COMPLETED',
-                paymentDate: { gte: start, lte: end },
-                category: { flowDirection: 'OUTFLOW' },
-              },
-            }),
-            this.prisma.$queryRaw<
-              {
-                type: string;
-                category_id: string;
-                name: string;
-                flow_direction: string;
-                signed_usd: string;
-                signed_bs: string;
-              }[]
-            >`
-                SELECT
-                    c.type,
-                    c.id AS category_id,
-                    c.name,
-                    c.flow_direction,
-                    SUM(
-                        CASE WHEN c.flow_direction = 'INFLOW' THEN t.amount_usd ELSE -t.amount_usd END
-                    ) AS signed_usd,
-                    SUM(
-                        CASE WHEN c.flow_direction = 'INFLOW' THEN t.amount_bs ELSE -t.amount_bs END
-                    ) AS signed_bs
-                FROM transactions t
-                INNER JOIN categories c ON c.id = t.category_id
-                WHERE t.company_id = ${companyId}::uuid
-                  AND t.is_removed = false
-                  AND t.status = 'COMPLETED'
-                  AND t.payment_date >= ${start}
-                  AND t.payment_date <= ${end}
-                GROUP BY c.type, c.id, c.name, c.flow_direction
-            `,
-            this.prisma.transaction.findMany({
-              where: {
-                companyId,
-                isRemoved: false,
-                status: 'COMPLETED',
-                paymentDate: { gte: start, lte: end },
-              },
-              include: { category: true },
-              orderBy: { paymentDate: 'desc' },
-            }),
-          ]);
+        const inflowAgg = await this.prisma.transaction.aggregate({
+          _sum: { amountUSD: true, amountBs: true },
+          where: {
+            companyId,
+            isRemoved: false,
+            status: 'COMPLETED',
+            paymentDate: { gte: start, lte: end },
+            category: { flowDirection: 'INFLOW' },
+          },
+        });
+
+        const outflowAgg = await this.prisma.transaction.aggregate({
+          _sum: { amountUSD: true, amountBs: true },
+          where: {
+            companyId,
+            isRemoved: false,
+            status: 'COMPLETED',
+            paymentDate: { gte: start, lte: end },
+            category: { flowDirection: 'OUTFLOW' },
+          },
+        });
+
+        const statementRows = await this.prisma.$queryRaw<
+          {
+            type: string;
+            category_id: string;
+            name: string;
+            flow_direction: string;
+            signed_usd: string;
+            signed_bs: string;
+          }[]
+        >`
+            SELECT
+                c.type,
+                c.id AS category_id,
+                c.name,
+                c.flow_direction,
+                SUM(
+                    CASE WHEN c.flow_direction = 'INFLOW' THEN t.amount_usd ELSE -t.amount_usd END
+                ) AS signed_usd,
+                SUM(
+                    CASE WHEN c.flow_direction = 'INFLOW' THEN t.amount_bs ELSE -t.amount_bs END
+                ) AS signed_bs
+            FROM transactions t
+            INNER JOIN categories c ON c.id = t.category_id
+            WHERE t.company_id = ${companyId}::uuid
+              AND t.is_removed = false
+              AND t.status = 'COMPLETED'
+              AND t.payment_date >= ${start}
+              AND t.payment_date <= ${end}
+            GROUP BY c.type, c.id, c.name, c.flow_direction
+        `;
+
+        const records = await this.prisma.transaction.findMany({
+          where: {
+            companyId,
+            isRemoved: false,
+            status: 'COMPLETED',
+            paymentDate: { gte: start, lte: end },
+          },
+          include: { category: true },
+          orderBy: { paymentDate: 'desc' },
+        });
 
         const inflowUsd = Number(inflowAgg._sum.amountUSD) || 0;
         const inflowBs = Number(inflowAgg._sum.amountBs) || 0;
