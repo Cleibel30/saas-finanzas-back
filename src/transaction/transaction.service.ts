@@ -160,12 +160,6 @@ export class TransactionService {
       // 4. SECUENCIAL: Creación de registros de transacciones
       const results = [];
       for (const t of data) {
-        const { amountUSD, amountBs } = this.calculateAmounts(
-          t.amount,
-          t.currency,
-          t.dollarRate,
-        );
-
         const transaction = await tx.transaction.create({
           data: {
             categoryId: t.categoryId,
@@ -173,8 +167,8 @@ export class TransactionService {
             batchId: t.batchId,
             quantity: t.quantity,
             unitPrice: t.unitPrice,
-            amountUSD,
-            amountBs,
+            amountUSD: t.amountUSD,
+            amountBs: t.amountBs,
             status: t.status,
             paymentMethod: t.paymentMethod,
             currency: t.currency,

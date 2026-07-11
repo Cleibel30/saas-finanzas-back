@@ -77,6 +77,29 @@ export class AuthService {
     }
   }
 
+  async syncOAuthUser(token: string) {
+  const { data: { user: supabaseUser }, error } = await this.supabase.auth.getUser(token);
+
+  if (error || !supabaseUser) {
+    throw new UnauthorizedException('Token de Supabase inválido');
+  }
+
+  const user = await this.prisma.user.upsert({
+    where: { id: supabaseUser.id },
+    update: {},
+    create: {
+      id: supabaseUser.id,
+      email: supabaseUser.email!,
+      name: supabaseUser.user_metadata?.name ?? supabaseUser.email!.split('@')[0],
+      role: 'USER',
+      tokenBalance: 0,
+      isSuspended: false,
+    },
+  });
+
+  return { userId: user.id, email: user.email, name: user.name };
+}
+
   async login(loginData: LoginDto) {
     const { email, password } = loginData;
 
