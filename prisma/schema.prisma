@@ -113,13 +113,15 @@ model Subscription {
 }
 
 model Company {
-  id          String    @id @default(uuid()) @db.Uuid
-  userId      String    @map("user_id") @db.Uuid
-  name        String
-  isSuspended  Boolean   @default(false) @map("is_suspended")
-  suspendedAt  DateTime? @map("suspended_at")
-  isRemoved   Boolean   @default(false) @map("is_removed")
-  createdAt   DateTime  @default(now()) @map("created_at")
+  id              String    @id @default(uuid()) @db.Uuid
+  userId          String    @map("user_id") @db.Uuid
+  name            String
+  cashBalanceUSD  Decimal   @default(0) @map("cash_balance_usd") @db.Decimal(15, 2)
+  cashBalanceBs   Decimal   @default(0) @map("cash_balance_bs") @db.Decimal(15, 2)
+  isSuspended     Boolean   @default(false) @map("is_suspended")
+  suspendedAt     DateTime? @map("suspended_at")
+  isRemoved       Boolean   @default(false) @map("is_removed")
+  createdAt       DateTime  @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id])
 

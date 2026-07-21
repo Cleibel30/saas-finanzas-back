@@ -11,7 +11,7 @@ export class ItemService {
   async createItems(createItemDto: CreateItemDto[], companyId: string) {
     const items = await this.prisma.item.createMany({
       data: createItemDto.map((item) => ({ ...item, companyId })),
-      skipDuplicates: true
+      skipDuplicates: true,
     });
     return items;
   }

@@ -24,6 +24,7 @@ import { FinanceChatModule } from './finance-chat/finance-chat.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
 import { CacheModule } from './common/cache/cache.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { CacheModule } from './common/cache/cache.module';
     ]),
     CompanyModule,
     PrismaModule,
+    DashboardModule,
     TransactionModule,
     CategoryModule,
     ItemModule,
