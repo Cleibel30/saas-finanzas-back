@@ -37,11 +37,11 @@ export class McpService implements OnModuleInit {
 
   constructor(
     private readonly marginService: ContributionMarginService,
-        private readonly grossProfitService: GrossProfitService,
-        private readonly netProfitService: NetProfitService,
-        private readonly unitCostService: UnitCostService,
-        private readonly priceMarginService: PriceMarginService,
-        private readonly balancePoint: BalancePointService,
+    private readonly grossProfitService: GrossProfitService,
+    private readonly netProfitService: NetProfitService,
+    private readonly unitCostService: UnitCostService,
+    private readonly priceMarginService: PriceMarginService,
+    private readonly balancePoint: BalancePointService,
     private readonly categoryService: CategoryService,
     private readonly itemService: ItemService,
     private readonly transactionService: TransactionService,
@@ -383,91 +383,95 @@ export class McpService implements OnModuleInit {
         ),
     );
 
-        this.registrarHerramienta(
-            'get_service_gross_profit',
-            'Calcula la utilidad bruta de un servicio en un rango de fechas. Requiere itemId (obtenerlo con search_item_by_name).',
-            marginByItemSchema,
-            async ({ companyId, itemId, startDate, endDate }) =>
-                this.grossProfitService.getServiceGrossProfit(
-                    itemId as string,
-                    companyId as string,
-                    new Date(startDate as string),
-                    new Date(endDate as string),
-                ),
-        );
+    this.registrarHerramienta(
+      'get_service_gross_profit',
+      'Calcula la utilidad bruta de un servicio en un rango de fechas. Requiere itemId (obtenerlo con search_item_by_name).',
+      marginByItemSchema,
+      async ({ companyId, itemId, startDate, endDate }) =>
+        this.grossProfitService.getServiceGrossProfit(
+          itemId as string,
+          companyId as string,
+          new Date(startDate as string),
+          new Date(endDate as string),
+        ),
+    );
 
-        this.registrarHerramienta(
-            'get_net_profit',
-            'Calcula la utilidad neta completa (Gross Profit - Expenses) de la empresa en un rango de fechas.',
-            dateRangeSchema,
-            async ({ companyId, startDate, endDate }) =>
-                this.netProfitService.getNetProfit(
-                    companyId as string,
-                    new Date(startDate as string),
-                    new Date(endDate as string),
-                ),
-        );
+    this.registrarHerramienta(
+      'get_net_profit',
+      'Calcula la utilidad neta completa (Gross Profit - Expenses) de la empresa en un rango de fechas.',
+      dateRangeSchema,
+      async ({ companyId, startDate, endDate }) =>
+        this.netProfitService.getNetProfit(
+          companyId as string,
+          new Date(startDate as string),
+          new Date(endDate as string),
+        ),
+    );
 
-        this.registrarHerramienta(
-            'get_net_profit_statement',
-            'Obtiene un estado de resultados P&L estructurado con Ventas, Utilidad Bruta, Gastos y Utilidad Neta.',
-            dateRangeSchema,
-            async ({ companyId, startDate, endDate }) =>
-                this.netProfitService.getStatement(
-                    companyId as string,
-                    new Date(startDate as string),
-                    new Date(endDate as string),
-                ),
-        );
+    this.registrarHerramienta(
+      'get_net_profit_statement',
+      'Obtiene un estado de resultados P&L estructurado con Ventas, Utilidad Bruta, Gastos y Utilidad Neta.',
+      dateRangeSchema,
+      async ({ companyId, startDate, endDate }) =>
+        this.netProfitService.getStatement(
+          companyId as string,
+          new Date(startDate as string),
+          new Date(endDate as string),
+        ),
+    );
 
-        this.registrarHerramienta(
-            'get_unit_cost_by_batch',
-            'Obtiene el costo total unitario de un lote de producción específico. Requiere batchId (obtenerlo con get_batch_by_id o list_production_batches).',
-            batchIdSchema,
-            async ({ companyId, batchId }) =>
-                this.unitCostService.getBatchUnitCost(
-                    batchId as string,
-                    companyId as string,
-                ),
-        );
+    this.registrarHerramienta(
+      'get_unit_cost_by_batch',
+      'Obtiene el costo total unitario de un lote de producción específico. Requiere batchId (obtenerlo con get_batch_by_id o list_production_batches).',
+      batchIdSchema,
+      async ({ companyId, batchId }) =>
+        this.unitCostService.getBatchUnitCost(
+          batchId as string,
+          companyId as string,
+        ),
+    );
 
-        this.registrarHerramienta(
-            'get_unit_cost_by_product',
-            'Obtiene el costo unitario promedio ponderado de un producto basado en sus lotes CLOSED. Requiere itemId (obtenerlo con search_item_by_name o list_products).',
-            itemIdSchema,
-            async ({ companyId, itemId }) =>
-                this.unitCostService.getProductUnitCost(
-                    itemId as string,
-                    companyId as string,
-                ),
-        );
+    this.registrarHerramienta(
+      'get_unit_cost_by_product',
+      'Obtiene el costo unitario promedio ponderado de un producto basado en sus lotes CLOSED. Requiere itemId (obtenerlo con search_item_by_name o list_products).',
+      itemIdSchema,
+      async ({ companyId, itemId }) =>
+        this.unitCostService.getProductUnitCost(
+          itemId as string,
+          companyId as string,
+        ),
+    );
 
-        this.registrarHerramienta(
-            'get_unit_cost_by_service',
-            'Obtiene el costo unitario promedio de un servicio basado en sus costos OUTFLOW dividido entre servicios vendidos. Requiere itemId (obtenerlo con search_item_by_name o list_services).',
-            itemIdSchema,
-            async ({ companyId, itemId }) =>
-                this.unitCostService.getServiceUnitCost(
-                    itemId as string,
-                    companyId as string,
-                ),
-        );
+    this.registrarHerramienta(
+      'get_unit_cost_by_service',
+      'Obtiene el costo unitario promedio de un servicio basado en sus costos OUTFLOW dividido entre servicios vendidos. Requiere itemId (obtenerlo con search_item_by_name o list_services).',
+      itemIdSchema,
+      async ({ companyId, itemId }) =>
+        this.unitCostService.getServiceUnitCost(
+          itemId as string,
+          companyId as string,
+        ),
+    );
 
-        this.registrarHerramienta(
-            'calculate_price_with_margin',
-            'Calcula el precio de venta recomendado para un producto o servicio dado su costo unitario y un margen objetivo. Detecta automáticamente si es producto o servicio. Requiere itemId y targetMarginPercent (ej: 30 para 30%).',
-            {
-                itemId: z.string().uuid().describe('ID del producto o servicio'),
-                targetMarginPercent: z.number().min(0).max(99).describe('Margen objetivo en porcentaje (ej: 30 para 30%)'),
-            },
-            async ({ companyId, itemId, targetMarginPercent }) =>
-                this.priceMarginService.calculateMarginTarget(
-                    itemId as string,
-                    companyId as string,
-                    targetMarginPercent as number,
-                ),
-        );
-    }
+    this.registrarHerramienta(
+      'calculate_price_with_margin',
+      'Calcula el precio de venta recomendado para un producto o servicio dado su costo unitario y un margen objetivo. Detecta automáticamente si es producto o servicio. Requiere itemId y targetMarginPercent (ej: 30 para 30%).',
+      {
+        itemId: z.string().uuid().describe('ID del producto o servicio'),
+        targetMarginPercent: z
+          .number()
+          .min(0)
+          .max(99)
+          .describe('Margen objetivo en porcentaje (ej: 30 para 30%)'),
+      },
+      async ({ companyId, itemId, targetMarginPercent }) =>
+        this.priceMarginService.calculateMarginTarget(
+          itemId as string,
+          companyId as string,
+          targetMarginPercent as number,
+        ),
+    );
+  }
 
   async ejecutarHerramienta(
     nombre: string,

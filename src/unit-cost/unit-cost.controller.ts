@@ -11,18 +11,27 @@ export class UnitCostController {
   @UseGuards(AuthGuard('jwt'), ValidateCompanyGuard)
   @Get('batch/:batchId/:companyId')
   async getBatchUnitCost(@Param() params: UnitCostBatchDto) {
-    return this.unitCostService.getBatchUnitCost(params.batchId, params.companyId);
+    return this.unitCostService.getBatchUnitCost(
+      params.batchId,
+      params.companyId,
+    );
   }
 
   @UseGuards(AuthGuard('jwt'), ValidateCompanyGuard)
   @Get('product/:itemId/:companyId')
   async getProductUnitCost(@Param() params: UnitCostProductDto) {
-    return this.unitCostService.getProductUnitCost(params.itemId, params.companyId);
+    return this.unitCostService.getProductUnitCost(
+      params.itemId,
+      params.companyId,
+    );
   }
 
   @UseGuards(AuthGuard('jwt'), ValidateCompanyGuard)
   @Get('service/:itemId/:companyId')
   async getServiceUnitCost(@Param() params: UnitCostProductDto) {
-    return this.unitCostService.getServiceUnitCost(params.itemId, params.companyId);
+    return this.unitCostService.getServiceUnitCost(
+      params.itemId,
+      params.companyId,
+    );
   }
 }

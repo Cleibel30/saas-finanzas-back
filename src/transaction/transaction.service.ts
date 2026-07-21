@@ -10,6 +10,7 @@ import {
   UpdateTransactionDto,
 } from './dto/transaction.dto';
 import { Category, Currency, Item, Prisma } from '@prisma/client';
+import { delay } from '@/common/utils/delay';
 
 type DbClient = PrismaService | Prisma.TransactionClient;
 
@@ -84,9 +85,7 @@ export class TransactionService {
     };
   }
 
-  // 1 Crear transacciones financieras con validaciones avanzadas y manejo de stock dinámico
   async createTransactions(data: CreateTransactionDto[], companyId: string) {
-    // Batch validation: resolve all entities before the transaction
     const categoryIds = [...new Set(data.map((t) => t.categoryId))];
     const itemIds = [
       ...new Set(data.filter((t) => t.itemId).map((t) => t.itemId!)),
@@ -95,104 +94,72 @@ export class TransactionService {
       ...new Set(data.filter((t) => t.batchId).map((t) => t.batchId!)),
     ];
 
-    const [categories, items, batches] = await Promise.all([
-      this.prisma.category.findMany({
-        where: { id: { in: categoryIds }, isRemoved: false },
-      }),
-      itemIds.length > 0
-        ? this.prisma.item.findMany({
-            where: { id: { in: itemIds }, companyId, isRemoved: false },
-          })
-        : Promise.resolve([] as Item[]),
-      batchIds.length > 0
-        ? this.prisma.productionBatch.findMany({
-            where: { id: { in: batchIds }, companyId, isRemoved: false },
-          })
-        : Promise.resolve([] as Item[]),
-    ]);
-
-    const categoryMap = new Map(categories.map((c) => [c.id, c]));
-    const itemMap = new Map(items.map((i) => [i.id, i]));
-    const batchSet = new Set(batches.map((b) => b.id));
-
-    for (const t of data) {
-      const category = categoryMap.get(t.categoryId);
-      if (!category)
-        throw new NotFoundException(
-          `La categoría con ID ${t.categoryId} no existe.`,
-        );
-      if (category.companyId !== companyId && !category.isDefault) {
-        throw new UnauthorizedException(
-          'La categoría no pertenece a la empresa.',
-        );
-      }
-
-      if (t.itemId) {
-        const item = itemMap.get(t.itemId);
-        if (!item)
-          throw new BadRequestException(
-            `El ítem con ID ${t.itemId} no existe.`,
-          );
-
-        if (t.batchId && !batchSet.has(t.batchId)) {
-          throw new BadRequestException(
-            `El lote con ID ${t.batchId} no existe.`,
-          );
-        }
-
-        if (item.type === 'PRODUCT') {
-          if (!t.quantity || t.quantity <= 0) {
-            throw new BadRequestException(
-              `La cantidad es obligatoria para el producto: ${item.name}`,
-            );
-          }
-        }
-      } else if (t.batchId && !batchSet.has(t.batchId)) {
-        throw new BadRequestException(`El lote con ID ${t.batchId} no existe.`);
-      }
-    }
-
     return await this.prisma.$transaction(async (tx) => {
-      const results = [];
+      // 1. Obtención de datos (secuencial para evitar colisión de conexiones en pg)
+      const categories = await tx.category.findMany({
+        where: { id: { in: categoryIds }, isRemoved: false },
+      });
+      const items =
+        itemIds.length > 0
+          ? await tx.item.findMany({
+              where: { id: { in: itemIds }, companyId, isRemoved: false },
+            })
+          : [];
+      const batches =
+        batchIds.length > 0
+          ? await tx.productionBatch.findMany({
+              where: { id: { in: batchIds }, companyId, isRemoved: false },
+            })
+          : [];
+
+      const categoryMap = new Map(categories.map((c) => [c.id, c]));
+      const itemMap = new Map(items.map((i) => [i.id, i]));
+      const batchSet = new Set(batches.map((b) => b.id));
+
+      // 2. Acumular el stock a restar únicamente si es PRODUCT y es INFLOW
       const stockToDecrement: Record<string, number> = {};
 
       for (const t of data) {
-        const category = categoryMap.get(t.categoryId)!;
+        const category = categoryMap.get(t.categoryId);
+        if (!category)
+          throw new NotFoundException(
+            `Categoría ${t.categoryId} no encontrada.`,
+          );
 
+        // Solo si es PRODUCT y la categoría es de tipo INFLOW (salida de inventario)
         if (t.itemId) {
-          const item = itemMap.get(t.itemId)!;
+          const item = itemMap.get(t.itemId);
+          if (!item)
+            throw new BadRequestException(`El ítem ${t.itemId} no existe.`);
 
           if (item.type === 'PRODUCT' && category.flowDirection === 'INFLOW') {
-            if (!stockToDecrement[t.itemId]) {
-              stockToDecrement[t.itemId] = 0;
-            }
-            stockToDecrement[t.itemId] += t.quantity!;
-
-            if (item.stockCurrent < stockToDecrement[t.itemId]) {
-              throw new BadRequestException(
-                `Stock insuficiente para ${item.name}. Disponible: ${item.stockCurrent}, Requerido en la petición: ${stockToDecrement[t.itemId]}`,
-              );
-            }
+            stockToDecrement[t.itemId] =
+              (stockToDecrement[t.itemId] || 0) + (t.quantity ?? 0);
           }
         }
       }
 
+      // 3. SECUENCIAL: Actualización de stock solo para productos validados
       for (const [itemId, totalDecrement] of Object.entries(stockToDecrement)) {
+        const item = itemMap.get(itemId)!;
+
+        // Validación estricta de stock
+        if (item.stockCurrent < totalDecrement) {
+          throw new BadRequestException(
+            `Stock insuficiente para el producto ${item.name}. Disponible: ${item.stockCurrent}, Requerido: ${totalDecrement}`,
+          );
+        }
+
         await tx.item.update({
           where: { id: itemId },
-          data: {
-            stockCurrent: { decrement: totalDecrement },
-          },
+          data: { stockCurrent: { decrement: totalDecrement } },
         });
+        await delay(1);
       }
 
+      // 4. SECUENCIAL: Creación de registros de transacciones
+      const results = [];
       for (const t of data) {
-        const { amountUSD, amountBs } = this.calculateAmounts(
-          t.amount,
-          t.currency,
-          t.dollarRate,
-        );
-
         const transaction = await tx.transaction.create({
           data: {
             categoryId: t.categoryId,
@@ -200,8 +167,8 @@ export class TransactionService {
             batchId: t.batchId,
             quantity: t.quantity,
             unitPrice: t.unitPrice,
-            amountUSD,
-            amountBs,
+            amountUSD: t.amountUSD,
+            amountBs: t.amountBs,
             status: t.status,
             paymentMethod: t.paymentMethod,
             currency: t.currency,
@@ -211,10 +178,9 @@ export class TransactionService {
             companyId,
             dollarRate: t.dollarRate,
           },
-          include: { category: true, item: true, batch: true },
         });
-
         results.push(transaction);
+        await delay(1);
       }
 
       return results;
@@ -224,19 +190,25 @@ export class TransactionService {
   async getTransactionsByCompany(companyId: string, page = 1, limit = 50) {
     const skip = (page - 1) * limit;
     const where = { companyId, isRemoved: false };
-    const [data, total] = await Promise.all([
-      this.prisma.transaction.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        include: { category: true, item: true, batch: true },
-        skip,
-        take: limit,
-      }),
-      this.prisma.transaction.count({ where }),
-    ]);
+
+    const data = await this.prisma.transaction.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      include: { category: true, item: true, batch: true },
+      skip,
+      take: limit,
+    });
+
+    const total = await this.prisma.transaction.count({ where });
+
     return {
       data,
-      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
     };
   }
 
@@ -268,14 +240,17 @@ export class TransactionService {
     return await this.prisma.$transaction(async (tx) => {
       if (data.categoryId) {
         await this.assertCategoryForCompany(tx, data.categoryId, companyId);
+        await delay(1);
       }
 
       if (data.itemId) {
         await this.assertItemForCompany(tx, data.itemId, companyId);
+        await delay(1);
       }
 
       if (data.batchId) {
         await this.assertBatchForCompany(tx, data.batchId, companyId);
+        await delay(1);
       }
 
       if (data.amount !== undefined && (!data.currency || !data.dollarRate)) {
@@ -333,6 +308,8 @@ export class TransactionService {
         if (data.dollarRate !== undefined)
           updatePayload.dollarRate = data.dollarRate;
       }
+
+      await delay(1);
 
       return tx.transaction.update({
         where: { id },

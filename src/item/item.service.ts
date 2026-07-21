@@ -11,7 +11,7 @@ export class ItemService {
   async createItems(createItemDto: CreateItemDto[], companyId: string) {
     const items = await this.prisma.item.createMany({
       data: createItemDto.map((item) => ({ ...item, companyId })),
-      skipDuplicates: true, // Skip duplicates based on unique constraints
+      skipDuplicates: true
     });
     return items;
   }
@@ -19,17 +19,14 @@ export class ItemService {
   //Obtener items de la empresa
   async getItemsByCompany(companyId: string, page = 1, limit = 50) {
     const skip = (page - 1) * limit;
-    const [data, total] = await Promise.all([
-      this.prisma.item.findMany({
-        where: { companyId, isRemoved: false },
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit,
-      }),
-      this.prisma.item.count({
-        where: { companyId, isRemoved: false },
-      }),
-    ]);
+    const where = { companyId, isRemoved: false };
+    const data = await this.prisma.item.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit,
+    });
+    const total = await this.prisma.item.count({ where });
     return {
       data,
       meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
@@ -183,15 +180,13 @@ export class ItemService {
   async getItemsProduct(companyId: string, page = 1, limit = 50) {
     const skip = (page - 1) * limit;
     const where = { companyId, isRemoved: false, type: 'PRODUCT' as const };
-    const [data, total] = await Promise.all([
-      this.prisma.item.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit,
-      }),
-      this.prisma.item.count({ where }),
-    ]);
+    const data = await this.prisma.item.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit,
+    });
+    const total = await this.prisma.item.count({ where });
     return {
       data,
       meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
@@ -202,15 +197,13 @@ export class ItemService {
   async getItemsService(companyId: string, page = 1, limit = 50) {
     const skip = (page - 1) * limit;
     const where = { companyId, isRemoved: false, type: 'SERVICE' as const };
-    const [data, total] = await Promise.all([
-      this.prisma.item.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit,
-      }),
-      this.prisma.item.count({ where }),
-    ]);
+    const data = await this.prisma.item.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit,
+    });
+    const total = await this.prisma.item.count({ where });
     return {
       data,
       meta: { page, limit, total, totalPages: Math.ceil(total / limit) },

@@ -9,6 +9,7 @@ import {
   MinLength,
   MaxLength,
   Matches,
+  Min,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { TransactionStatus, PaymentMethod, Currency } from '@prisma/client';
@@ -28,6 +29,7 @@ export class CreateTransactionDto {
 
   @IsNumber()
   @IsOptional()
+  @Min(1)
   @Type(() => Number)
   quantity?: number;
 
@@ -39,7 +41,12 @@ export class CreateTransactionDto {
   @IsNumber()
   @IsNotEmpty()
   @Type(() => Number)
-  amount!: number;
+  amountUSD!: number;
+
+  @IsNumber()
+  @IsNotEmpty()
+  @Type(() => Number)
+  amountBs!: number;
 
   @IsNumber()
   @IsNotEmpty()
