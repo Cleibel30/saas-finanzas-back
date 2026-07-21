@@ -1,4 +1,11 @@
-import { Body, Controller, Get, Post, Req, UnauthorizedException } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Post,
+  Req,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto, RegisterDto } from './dto/auth.dto';
 import { Request } from 'express';
@@ -8,7 +15,7 @@ import { UserDto } from './dto/user.dto';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) { }
+  constructor(private readonly authService: AuthService) {}
 
   @Public()
   @Throttle({ default: { limit: 5, ttl: 60_000 } })

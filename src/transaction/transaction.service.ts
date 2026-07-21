@@ -9,9 +9,13 @@ import {
   CreateTransactionDto,
   UpdateTransactionDto,
 } from './dto/transaction.dto';
-import { Category, Currency, Item, Prisma } from '@prisma/client';
-import { delay } from '@/common/utils/delay';
-
+import {
+  Category,
+  Currency,
+  FlowDirection,
+  Item,
+  Prisma,
+} from '@prisma/client';
 type DbClient = PrismaService | Prisma.TransactionClient;
 
 @Injectable()
@@ -154,11 +158,13 @@ export class TransactionService {
           where: { id: itemId },
           data: { stockCurrent: { decrement: totalDecrement } },
         });
-        await delay(1);
       }
 
       // 4. SECUENCIAL: Creación de registros de transacciones
       const results = [];
+      let deltaUSD = 0;
+      let deltaBs = 0;
+
       for (const t of data) {
         const transaction = await tx.transaction.create({
           data: {
@@ -180,7 +186,23 @@ export class TransactionService {
           },
         });
         results.push(transaction);
-        await delay(1);
+
+        if (t.status === 'COMPLETED') {
+          const category = categoryMap.get(t.categoryId)!;
+          const sign = category.flowDirection === FlowDirection.INFLOW ? 1 : -1;
+          deltaUSD += sign * t.amountUSD;
+          deltaBs += sign * t.amountBs;
+        }
+      }
+
+      if (deltaUSD !== 0 || deltaBs !== 0) {
+        await tx.company.update({
+          where: { id: companyId },
+          data: {
+            cashBalanceUSD: { increment: deltaUSD },
+            cashBalanceBs: { increment: deltaBs },
+          },
+        });
       }
 
       return results;
@@ -232,25 +254,27 @@ export class TransactionService {
   ) {
     const transaction = await this.prisma.transaction.findFirst({
       where: { id, companyId, isRemoved: false },
+      include: { category: true },
     });
     if (!transaction) {
       throw new NotFoundException(`La transacción con ID ${id} no existe.`);
     }
 
+    const oldSign =
+      transaction.category.flowDirection === FlowDirection.INFLOW ? 1 : -1;
+    const wasCompleted = transaction.status === 'COMPLETED';
+
     return await this.prisma.$transaction(async (tx) => {
       if (data.categoryId) {
         await this.assertCategoryForCompany(tx, data.categoryId, companyId);
-        await delay(1);
       }
 
       if (data.itemId) {
         await this.assertItemForCompany(tx, data.itemId, companyId);
-        await delay(1);
       }
 
       if (data.batchId) {
         await this.assertBatchForCompany(tx, data.batchId, companyId);
-        await delay(1);
       }
 
       if (data.amount !== undefined && (!data.currency || !data.dollarRate)) {
@@ -289,6 +313,9 @@ export class TransactionService {
       if (data.paymentReference !== undefined)
         updatePayload.paymentReference = data.paymentReference;
 
+      let newAmountUSD = Number(transaction.amountUSD);
+      let newAmountBs = Number(transaction.amountBs);
+
       if (
         data.amount !== undefined &&
         data.currency &&
@@ -299,6 +326,8 @@ export class TransactionService {
           data.currency,
           data.dollarRate,
         );
+        newAmountUSD = amountUSD;
+        newAmountBs = amountBs;
         updatePayload.amountUSD = amountUSD;
         updatePayload.amountBs = amountBs;
         updatePayload.currency = data.currency;
@@ -309,28 +338,87 @@ export class TransactionService {
           updatePayload.dollarRate = data.dollarRate;
       }
 
-      await delay(1);
+      const newStatus = data.status ?? transaction.status;
+      let newSign = oldSign;
 
-      return tx.transaction.update({
+      if (data.categoryId && data.categoryId !== transaction.categoryId) {
+        const newCategory = await tx.category.findUnique({
+          where: { id: data.categoryId },
+        });
+        if (!newCategory) {
+          throw new NotFoundException(
+            `La categoría con ID ${data.categoryId} no existe.`,
+          );
+        }
+        newSign = newCategory.flowDirection === FlowDirection.INFLOW ? 1 : -1;
+      }
+
+      const oldEffect = wasCompleted
+        ? {
+            usd: oldSign * Number(transaction.amountUSD),
+            bs: oldSign * Number(transaction.amountBs),
+          }
+        : { usd: 0, bs: 0 };
+      const newEffect =
+        newStatus === 'COMPLETED'
+          ? { usd: newSign * newAmountUSD, bs: newSign * newAmountBs }
+          : { usd: 0, bs: 0 };
+
+      const deltaUSD = newEffect.usd - oldEffect.usd;
+      const deltaBs = newEffect.bs - oldEffect.bs;
+
+      const updated = await tx.transaction.update({
         where: { id },
         data: updatePayload,
         include: { category: true, item: true, batch: true },
       });
+
+      if (deltaUSD !== 0 || deltaBs !== 0) {
+        await tx.company.update({
+          where: { id: companyId },
+          data: {
+            cashBalanceUSD: { increment: deltaUSD },
+            cashBalanceBs: { increment: deltaBs },
+          },
+        });
+      }
+
+      return updated;
     });
   }
 
   async deleteTransaction(id: string, companyId: string) {
     const transaction = await this.prisma.transaction.findFirst({
       where: { id, companyId, isRemoved: false },
+      include: { category: true },
     });
 
     if (!transaction) {
       throw new NotFoundException(`La transacción con ID ${id} no existe.`);
     }
 
-    return await this.prisma.transaction.update({
-      where: { id },
-      data: { isRemoved: true },
+    return await this.prisma.$transaction(async (tx) => {
+      const result = await tx.transaction.update({
+        where: { id },
+        data: { isRemoved: true },
+      });
+
+      if (transaction.status === 'COMPLETED') {
+        const sign =
+          transaction.category.flowDirection === FlowDirection.INFLOW ? 1 : -1;
+        const deltaUSD = -(sign * Number(transaction.amountUSD));
+        const deltaBs = -(sign * Number(transaction.amountBs));
+
+        await tx.company.update({
+          where: { id: companyId },
+          data: {
+            cashBalanceUSD: { increment: deltaUSD },
+            cashBalanceBs: { increment: deltaBs },
+          },
+        });
+      }
+
+      return result;
     });
   }
 
@@ -353,7 +441,75 @@ export class TransactionService {
           lte: end,
         },
       },
+      include: { category: true },
     });
+  }
+
+  async getCompanyBalance(
+    companyId: string,
+  ): Promise<{ usd: number; bs: number }> {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { cashBalanceUSD: true, cashBalanceBs: true },
+    });
+
+    if (!company) {
+      throw new NotFoundException('Company not found');
+    }
+
+    return {
+      usd: Number(company.cashBalanceUSD),
+      bs: Number(company.cashBalanceBs),
+    };
+  }
+
+  async getMonthlyChartData(
+    companyId: string,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<Array<{ month: string; revenue: number; expenses: number }>> {
+    const transactions = await this.prisma.transaction.findMany({
+      where: {
+        companyId,
+        isRemoved: false,
+        paymentDate: { gte: startDate, lte: endDate },
+      },
+      include: { category: true },
+    });
+
+    const monthlyMap = new Map<
+      string,
+      { revenue: number; expenses: number }
+    >();
+
+    for (const t of transactions) {
+      const d = t.paymentDate ?? t.createdAt;
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const entry = monthlyMap.get(key) ?? { revenue: 0, expenses: 0 };
+      const amount = Number(t.amountUSD);
+      if (t.category.flowDirection === 'INFLOW') {
+        entry.revenue += amount;
+      } else {
+        entry.expenses += amount;
+      }
+      monthlyMap.set(key, entry);
+    }
+
+    const result: Array<{
+      month: string;
+      revenue: number;
+      expenses: number;
+    }> = [];
+    const cursor = new Date(startDate);
+    const end = new Date(endDate);
+    while (cursor <= end) {
+      const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}`;
+      const data = monthlyMap.get(key) ?? { revenue: 0, expenses: 0 };
+      result.push({ month: key, ...data });
+      cursor.setMonth(cursor.getMonth() + 1);
+    }
+
+    return result;
   }
 
   async getTransactionsByCategory(companyId: string, categoryId: string) {
