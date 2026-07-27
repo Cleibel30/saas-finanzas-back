@@ -113,7 +113,7 @@ export class NetProfitService {
       },
       netProfitUSD: Number(netProfitUSD.toFixed(2)),
       netProfitBs: Number(netProfitBs.toFixed(2)),
-      netMarginRatio: Number(netMarginRatio.toFixed(2)),
+      netMarginRatio: Number(netMarginRatio.toFixed(2)) * 100,
     };
   }
 

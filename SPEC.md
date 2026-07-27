@@ -197,6 +197,7 @@ Relations: `transactions: Transaction[]`
 | `currency` | `Currency` | `BOLIVARES`, `DOLARES` |
 | `paymentReference` | String? | |
 | `description` | String? | |
+| `stockEffect` | `StockEffect` | `INCREMENT`, `DECREMENT`, `NONE` |
 | `paymentDate` | DateTime? | |
 | `isRemoved` | Boolean | |
 
@@ -430,10 +431,12 @@ Toda transacción almacena ambos montos:
 - Si `currency = BOLIVARES`: `amountUSD = amount / dollarRate`, `amountBs = amount`
 
 ### 5.3 Control de Stock (Items tipo PRODUCT)
-- Al crear una **transacción** con un Item `PRODUCT` y categoría `INFLOW` → se decrementa `stockCurrent`.
-- Al crear un **lote de producción** con categorías `INFLOW` → se decrementa `stockCurrent`.
+- El campo `stockEffect` en la transacción determina explícitamente el efecto en inventario:
+  - `INCREMENT` → suma `quantity` a `stockCurrent`
+  - `DECREMENT` → resta `quantity` a `stockCurrent`
+  - `NONE` → no afecta stock
+- Solo aplica a Items `PRODUCT`. Los `SERVICE` nunca afectan stock.
 - La validación de stock suficiente ocurre **antes** de la escritura en base (dentro de una transacción Prisma).
-- Los `SERVICE` nunca afectan stock.
 
 ### 5.4 Categorías por Defecto
 El endpoint `GET /category/list/:companyId` retorna las categorías propias de la compañía **más** aquellas con `isDefault: true` (categorías globales del sistema sin `companyId`).

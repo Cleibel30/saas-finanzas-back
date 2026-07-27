@@ -308,40 +308,173 @@ Cada herramienta se registra con:
 
 ## 11. IA y Chat Financiero — Arquitectura
 
-### 11.1 Pipeline de Procesamiento
+### 11.1 Pipeline de Procesamiento (Actualizado)
 
 ```
 POST /finance-chat/ask/:companyId
   Body: { preguntaUsuario: string }
 
-  1. detectarConsultaEncadenada(pregunta)
-     → Regex para consultas compuestas (margen + producto + fecha)
-     → Resuelve nombres de entidades a IDs via search tools
-     → Ejecuta herramienta objetivo concreta
-     → Retorna resultado estructurado
-
-  2. planificarEjecucionDirecta(pregunta)
-     → Regex para consultas simples
-     → "listar productos" → list_products()
-     → "stock actual" → get_all_items() + filtrar
-     → Retorna resultado
-
-  3. inferirHerramientaPorPalabrasClave(pregunta)
-     → Mapa de palabras clave → herramientas
-     → "margen, contribucion" → get_global_margin
-     → Retorna resultado
-
-  4. Groq LLM Fallback
-     → Envía pregunta + tool definitions a groq-sdk
-     → Ejecuta tool calls que el modelo decida
-     → Formatea resultado
+  ┌─ 1. detectarConsultaEncadenada(pregunta)
+  │     → Regex para consultas compuestas (margen + producto + fecha)
+  │     → Resuelve nombres de entidades a IDs via search tools
+  │     → Ejecuta herramienta objetivo concreta
+  │     → Retorna resultado estructurado
+  │
+  ├─ 2. planificarEjecucionDirecta(pregunta)
+  │     → Regex para consultas simples
+  │     → "listar productos" → list_products()
+  │     → "dame stock de tortas" → search_item_by_name("tortas")
+  │     → Retorna resultado
+  │
+  ├─ 3. inferirHerramientaPorPalabrasClave(pregunta)
+  │     → Mapa de palabras clave → herramientas
+  │     → "margen" → get_global_margin
+  │     → Retorna resultado
+  │
+  ├─ 4. extraerNombreEntidad(pregunta)  ← Patrones expandidos (19 patrones)
+  │     → Extrae nombre de producto/servicio/categoría de la query
+  │     → Si encuentra → search_item_by_name
+  │     → Si NO encuentra → continúa al paso 5
+  │
+  └─ 5. ejecutarFallbackGroq()  ← UNIVERSAL (Opción 2) / ReAct (Opción 3)
+        → Siempre se ejecuta (data y no-data queries)
+        → Opción 2: 1 ronda de tool-calling
+        → Opción 3: Bucle ReAct de hasta 3 rondas
 ```
 
-### 11.2 Modelo
+### 11.2 Opción 2 — Groq Single-Round (Fallback Universal)
+
+**Cuándo se ejecuta:** Siempre que los pasos 1-4 no produzcan un resultado.
+
+**Comportamiento:**
+
+```
+ejecutarFallbackGroq(pregunta, companyId, tools, requiereDatos):
+
+  1. Construye system prompt con ejemplos de mapeo NL → tool
+  2. Envía pregunta + todas las tools registradas a Groq (tool_choice='auto')
+  3. Groq decide:
+     a. Llamar una tool (search_item_by_name, get_global_margin, etc.)
+     b. Responder texto directamente (saludo, consulta no financiera)
+  4. Si llamó tools → ejecuta → formatea resultado determinísticamente
+  5. Si respondió texto → devuelve texto
+```
+
+**System prompt mejorado:**
+
+```
+Eres un asistente financiero para una empresa. Fecha actual: {hoy}.
+
+IMPORTANTE: Cuando el usuario mencione un producto, servicio o categoría
+por su nombre, usa search_item_by_name(name="...") o
+search_category_by_name(name="...") para buscarlo en la base de datos.
+
+REGLAS:
+- Stock, precio, inventario, existencia → search_item_by_name
+- Margen/rentabilidad de X → search_item_by_name + get_service/product_margin
+- Listados → list_products, list_services, list_categories
+- Flujo de caja → get_total_cash_flow
+- Punto de equilibrio → get_break_even_point
+- Costos → get_unit_cost_by_product/service/batch
+
+Responde SIEMPRE en español, de forma breve y amable.
+No inventes datos. Usa las herramientas disponibles.
+```
+
+**Cobertura:** ~99% de consultas de un solo paso.
+
+### 11.3 Opción 3 — Bucle ReAct Multi-Round
+
+**Cuándo se ejecuta:** En lugar del single-round, cuando se configura Opción 3.
+
+**Comportamiento:**
+
+```
+ejecutarGroqMultiRound(pregunta, companyId, tools, maxRounds=3):
+
+  messages = [systemPrompt, { role:'user', content: pregunta }]
+  round = 1
+
+  LOOP:
+    choice = llamarGroq(messages, tools, 'auto')
+
+    if choice.message.content && NO tool_calls:
+      return content  # Groq respondió directamente (saludo, etc.)
+
+    if tool_calls:
+      for each tool_call:
+        resultado = ejecutarHerramienta(tool_call)
+        ejecuciones.push(resultado)
+        messages.push({ role:'tool', tool_call_id, content: resultado })
+
+      if todas_las_tools_fueron_finales:
+        return formatearRespuestaDeterministica(ejecuciones)
+
+      # Alguna tool fue resolvedora (search_item_by_name devolvió un ID)
+      # → continuar bucle para que Groq use el ID con una tool final
+      round++
+
+  return formatearRespuestaDeterministica(ejecuciones)
+```
+
+**Herramientas resolvedoras** (producen IDs para encadenar):
+- `search_item_by_name` → devuelve `{ itemId, name, type }`
+- `search_category_by_name` → devuelve `{ categoryId, name }`
+
+**Herramientas finales** (consumen IDs, son punto final):
+- `get_product_margin`, `get_service_margin`, `get_global_margin`
+- `get_product_gross_profit`, `get_service_gross_profit`
+- `get_batches_by_product`, `get_transactions_by_category`
+- `get_unit_cost_by_product`, `get_unit_cost_by_service`
+- `calculate_price_with_margin`, etc.
+
+**Ejemplo de flujo ReAct:**
+
+```
+Round 1:
+  User: "margen del servicio consultoría este mes"
+  Groq → search_item_by_name(name="consultoría")
+  System → { id: "abc-123", name: "Consultoría", type: "SERVICE" }
+
+Round 2:
+  Groq ve "abc-123" en el resultado anterior
+  Groq → get_service_margin(itemId="abc-123", startDate="2026-07-01", endDate="2026-07-26")
+  System → { margin: 45.2, ... }
+
+  → get_service_margin es final → formatear y devolver
+```
+
+**Cobertura:** ~99% de consultas multi-paso (donde el nombre se resuelve a ID y luego se consulta).
+
+### 11.4 Modelo
 
 - **Provider**: Groq
 - **Modelo**: `llama-3.3-70b-versatile`
 - **API Key**: `GROQ_API_KEY` (sin ella, chat deshabilitado)
+
+### 11.5 Patrones de Extracción de Entidades
+
+La función `extraerNombreEntidad()` en `finance-query.resolver.ts` usa 19 patrones regex (expandido de 12 originales):
+
+| # | Patrón | Ejemplos que captura |
+|---|--------|---------------------|
+| 1-12 | Originales | margen, rentabilidad, stock, precio, lotes, etc. |
+| 13 | `/dame\s+(?:el\|la)?\s*(?:stock\|precio\|...)\s+(?:de\|del)?\s*(.+)/` | "dame stock tortas", "dame el precio de tortas" |
+| 14 | `/(?:tengo\|hay)\s+(?:en\s+)?(?:stock\|...)\s+(?:de\|del)?\s*(.+)/` | "tengo en stock tortas", "hay stock de tortas" |
+| 15 | `/(?:cuanto\|cuanta)\s+(?:stock\|...)\s+(?:tengo\|hay)\s+(?:de\|del)?\s*(.+)/` | "cuanto stock tengo de tortas" |
+| 16 | `/(?:que\|cual\|cuales)\s+(.+)\s+(?:hay\|tengo\|...)/` | "que tortas hay", "cuales servicios existen" |
+| 17 | `/hay\s+(.+)\s+(?:en\s+)?(?:stock\|inventario)/` | "hay tortas en stock" |
+| 18 | `/(?:quiero\|necesito\|ver)\s+(?:el\|la)?\s*(?:stock\|...)\s+(?:de\|del)?\s*(.+)/` | "quiero ver stock de tortas" |
+| 19 | `/(?:informacion\|detalles?\|resumen)\s+(?:de\|del\|sobre)\s+(.+)/` | "informacion de tortas" |
+
+### 11.6 Costos de API (Groq)
+
+| Opción | Costo por consulta al fallback | Consultas típicas/mes | Costo mensual estimado |
+|--------|-------------------------------|-----------------------|------------------------|
+| Opción 2 (single-round) | ~$0.0013 (2K input + 150 output tokens) | ~200 | ~$0.26 |
+| Opción 3 (multi-round) | ~$0.0026-0.0040 (2-3 rondas) | ~100 (solo multi-paso) | ~$0.40 |
+
+Solo las consultas que ningún patrón captura llegan a Groq, por lo que el volumen real es bajo.
 
 ---
 

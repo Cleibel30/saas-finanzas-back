@@ -26,25 +26,19 @@ export class CategoryController {
   @Post('create/:companyId')
   async createCategory(
     @Body() categoryData: CreateCategoryDto,
-    @Req() req: Request & { user: UserDto },
     @Param('companyId') companyId: string,
   ) {
-    const userId = req.user.userId;
-
-    return this.categoryService.createCategory(categoryData, userId, companyId);
+    return this.categoryService.createCategory(categoryData, companyId);
   }
 
   @UseGuards(AuthGuard('jwt'), ValidateCompanyGuard)
   @Get('list/:companyId')
   async getCategories(
     @Param('companyId') companyId: string,
-    @Req() req: Request & { user: UserDto },
     @Query() pagination: PaginationDto,
   ) {
-    const userId = req.user.userId;
     return this.categoryService.getCategoriesByCompany(
       companyId,
-      userId,
       pagination.page,
       pagination.limit,
     );

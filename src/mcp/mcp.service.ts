@@ -239,7 +239,11 @@ export class McpService implements OnModuleInit {
       'Lista todas las categorías activas de la empresa (incluye categorías por defecto del sistema).',
       emptySchema,
       async ({ companyId }) =>
-        this.categoryService.getCategoriesByCompany(companyId as string, ''),
+        this.categoryService.getCategoriesByCompany(
+          companyId as string,
+          1,
+          100,
+        ),
     );
 
     this.registrarHerramienta(

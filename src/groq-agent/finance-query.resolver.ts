@@ -90,7 +90,7 @@ export function extraerNombreEntidad(pregunta: string): string | null {
       .replace(/^["'«]|["'»]$/g, '')
       .replace(/[?.!,:;]+$/g, '')
       .replace(
-        /\b(en|del|de|este|mes|pasado|hoy|ultimos?|últimos?|30\s+d[ií]as|año|ano)\b/gi,
+        /\b(en|del|de|este|mes|pasado|hoy|ultimos?|últimos?|30\s+d[ií]as|año|ano|dame|quiero|necesito|ver|mostrar|hay|tengo|pasame|busca)\b/gi,
         ' ',
       )
       .replace(/\s+/g, ' ')
@@ -116,6 +116,27 @@ export function extraerNombreEntidad(pregunta: string): string | null {
     /(?:precio|existencias?|disponibilidad)\s+(?:de|del|de la)\s+(?:la|el)?\s*(.+)/i,
     /(?:servicio|producto|art[ií]culo|item)\s+(.+)/i,
     /buscar\s+(?:producto|servicio|item|categor[ií]a)?\s*(.+)/i,
+
+    // #13 — "dame stock tortas", "dame el precio de tortas"
+    /dame\s+(?:el|la|los|las)?\s*(?:stock|precio|inventario|existencia)\s+(?:de|del|de\s+la)?\s*(.+)/i,
+
+    // #14 — "tengo en stock tortas", "hay stock de tortas"
+    /(?:tengo|hay|tenemos)\s+(?:en\s+)?(?:stock|inventario|existencia)\s+(?:de|del|de\s+la)?\s*(.+)/i,
+
+    // #15 — "cuanto stock tengo de tortas"
+    /(?:cu[aá]nto|cu[aá]nta)\s+(?:stock|existencia|inventario)\s+(?:tengo|hay|tenemos)\s+(?:de|del|de\s+la)?\s*(.+)/i,
+
+    // #16 — "que tortas hay", "cuales servicios existen", "cuantas tortas hay"
+    /(?:que|cu[aá]l|cu[aá]les|cu[aá]ntas?|cu[aá]ntos?)\s+(.+)\s+(?:hay|tengo|tenemos|existen|tiene)/i,
+
+    // #17 — "hay tortas en stock"
+    /hay\s+(.+)\s+(?:en\s+)?(?:stock|inventario)/i,
+
+    // #18 — "quiero ver stock de tortas", "necesito precio de tortas"
+    /(?:quiero|necesito|ver|mostrar)\s+(?:el|la|los|las)?\s*(?:stock|precio|inventario|existencia|info(?:rmacion|rmación)|datos)\s+(?:de|del|de\s+la|sobre)?\s*(.+)/i,
+
+    // #19 — "informacion de tortas", "detalles sobre tortas"
+    /(?:informacion|información|detalles?|resumen)\s+(?:de|del|sobre|acerca\s+de)\s+(.+)/i,
   ];
 
   for (const patron of patrones) {

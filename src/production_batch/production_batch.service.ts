@@ -5,11 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import {
-  CreateBatchWithTransactionsDto,
-  UpdateBatchDto,
-} from './dto/batch.dto';
-import { delay } from '@/common/utils/delay';
+import { CreateBatchDto, UpdateBatchDto } from './dto/batch.dto';
 
 @Injectable()
 export class ProductionBatchService {
@@ -18,13 +14,8 @@ export class ProductionBatchService {
     private transactionService: TransactionService,
   ) {}
 
-  //Crear un batch con sus transacciones de forma atómica
-  async createBatchAndTransactions(
-    companyId: string,
-    itemId: string,
-    dto: CreateBatchWithTransactionsDto,
-  ) {
-    // 1. Validar que el ítem existe
+  //Crear un batch sin transacciones
+  async createBatch(companyId: string, itemId: string, dto: CreateBatchDto) {
     const findItem = await this.transactionService.assertItemForCompany(
       this.prisma,
       itemId,
@@ -33,87 +24,14 @@ export class ProductionBatchService {
     if (findItem.type === 'SERVICE')
       throw new BadRequestException('No se pueden crear lotes para servicios.');
 
-    // 2. Extraer IDs únicos de categorías del DTO para validar
-    const categoryIds = [...new Set(dto.transactions.map((t) => t.categoryId))];
-
-    // 3. Validar todas las categorías usando el servicio compartido
-    const categories: { id: string; flowDirection: string }[] = [];
-    for (const catId of categoryIds) {
-      const cat = await this.transactionService.assertCategoryForCompany(
-        this.prisma,
-        catId,
+    return this.prisma.productionBatch.create({
+      data: {
         companyId,
-      );
-      categories.push(cat);
-    }
-
-    let necesitaDescontarStock = false;
-
-    for (const category of categories) {
-      if (category.flowDirection === 'INFLOW' && findItem.type === 'PRODUCT') {
-        necesitaDescontarStock = true;
-      }
-    }
-
-    // 4. Ejecutar todo de forma atómica (stock + creación)
-    return await this.prisma.$transaction(async (tx) => {
-      if (necesitaDescontarStock) {
-        const itemActual = await tx.item.findUnique({ where: { id: itemId } });
-        await delay(1);
-
-        if (!itemActual || itemActual.stockCurrent < dto.quantity) {
-          throw new BadRequestException(
-            `No hay suficiente stock disponible para el producto ${findItem.name}. Disponible: ${itemActual?.stockCurrent ?? 0}`,
-          );
-        }
-
-        await tx.item.update({
-          where: { id: itemId },
-          data: { stockCurrent: { decrement: dto.quantity } },
-        });
-        await delay(1);
-      }
-
-      return await tx.productionBatch.create({
-        data: {
-          companyId: companyId,
-          itemId: itemId,
-          quantity: dto.quantity,
-          status: dto.status,
-          batchDate: new Date(dto.batchDate),
-
-          transactions: {
-            create: dto.transactions.map((t) => {
-              const { amountUSD, amountBs } =
-                this.transactionService.calculateAmounts(
-                  t.amount,
-                  t.currency,
-                  t.dollarRate,
-                );
-              return {
-                companyId: companyId,
-                categoryId: t.categoryId,
-                itemId: itemId,
-                amountUSD,
-                amountBs,
-                quantity: t.quantity,
-                status: t.status,
-                paymentMethod: t.paymentMethod,
-                currency: t.currency,
-                paymentReference: t.paymentReference,
-                dollarRate: t.dollarRate,
-                description: t.description,
-                paymentDate: t.paymentDate
-                  ? new Date(t.paymentDate)
-                  : new Date(),
-              };
-            }),
-          },
-        },
-        include: {
-          transactions: true,
-        },
-      });
+        itemId,
+        quantity: dto.quantity ?? 0,
+        status: dto.status ?? 'OPEN',
+        batchDate: dto.batchDate ? new Date(dto.batchDate) : new Date(),
+      },
     });
   }
 
@@ -158,10 +76,18 @@ export class ProductionBatchService {
     };
   }
 
-  async getBatchById(batchId: string, companyId: string) {
+  async getBatchById(companyId: string, batchId: string) {
     const batch = await this.prisma.productionBatch.findFirst({
       where: { id: batchId, companyId, isRemoved: false },
-      include: { item: true, transactions: true },
+      include: {
+        item: true,
+        transactions: {
+          where: { companyId, isRemoved: false },
+          include: {
+            category: true,
+          },
+        },
+      },
     });
 
     if (!batch) throw new NotFoundException('El lote especificado no existe.');

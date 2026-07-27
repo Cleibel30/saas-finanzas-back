@@ -1,6 +1,5 @@
 import { ItemType } from '@prisma/client';
 import {
-  IsBoolean,
   IsEnum,
   IsNotEmpty,
   IsNumber,

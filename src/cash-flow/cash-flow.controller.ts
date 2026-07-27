@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, UseGuards } from '@nestjs/common';
 import { CashFlowService } from './cash-flow.service';
 import { AuthGuard } from '@nestjs/passport';
 import { ValidateCompanyGuard } from '@/company/guards/validate-company/validate-company.guard';
@@ -18,6 +18,17 @@ export class CashFlowController {
   @Get('cashflow/:companyId/:startDate/:endDate')
   async getCashFlow(@Param() params: CashFlowDto) {
     return this.cashFlowService.getCashFlow(
+      params.companyId,
+      params.startDate,
+      params.endDate,
+    );
+  }
+
+  // TEMPORARY: debug pending transactions in date range
+  @UseGuards(AuthGuard('jwt'), ValidateCompanyGuard)
+  @Get('debug/pending/:companyId/:startDate/:endDate')
+  async debugPendingTransactions(@Param() params: CashFlowDto) {
+    return this.cashFlowService.debugPendingTransactions(
       params.companyId,
       params.startDate,
       params.endDate,
