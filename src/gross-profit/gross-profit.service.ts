@@ -97,12 +97,12 @@ export class GrossProfitService {
     const cogsAgg = await this.prisma.transaction.aggregate({
       _sum: { amountUSD: true, amountBs: true, quantity: true },
       where: {
-        itemId,
         companyId,
         status: TransactionStatus.COMPLETED,
         isRemoved: false,
         paymentDate: { gte: start, lte: end },
         category: { flowDirection: FlowDirection.OUTFLOW, isCogs: true },
+        OR: [{ itemId }, { costItemId: itemId }],
       },
     });
 

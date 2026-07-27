@@ -112,15 +112,16 @@ export class ContributionMarginService {
 
     // 3. OBTENER EL COSTO VARIABLE DIRECTO DESDE TRANSACCIONES
     // Sumamos todas las transacciones OUTFLOW + isVariable asociadas directamente al producto
+    // o a través de costItemId (materia prima asociada a este producto)
     const variableCostsAgg = await this.prisma.transaction.aggregate({
       _sum: { amountUSD: true, amountBs: true },
       where: {
-        itemId: itemId,
         companyId: companyId,
         status: TransactionStatus.COMPLETED,
         isRemoved: false,
         paymentDate: { gte: start, lte: end },
         category: { flowDirection: FlowDirection.OUTFLOW, isVariable: true },
+        OR: [{ itemId: itemId }, { costItemId: itemId }],
       },
     });
 

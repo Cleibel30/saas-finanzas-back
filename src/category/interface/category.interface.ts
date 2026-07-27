@@ -4,5 +4,6 @@ export interface FuzzyCategoryResult {
   type: string;
   flowDirection: string;
   isCogs: boolean;
+  isDirectCost: boolean;
   isDefault: boolean;
 }

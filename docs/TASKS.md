@@ -409,6 +409,26 @@ Leyenda: `[x]` Hecho · `[ ]` Pendiente · `[~]` Parcial
 
 ---
 
+## FASE 10: Mejora de NLU en Finance Chat (0% Implementado)
+
+### 10.1 Opción 2 — Patrones mejorados + Groq single-round fallback
+
+- [x] Expandir patrones de `extraerNombreEntidad()` (de 12 a 19 patrones)
+- [x] Agregar palabras clave a `requiereConsultaBaseDeDatos()`
+- [x] Restructurar `procesarPreguntaFinanciera()` para fallback universal
+- [x] Crear método `ejecutarFallbackGroq()` (tool-calling 1 ronda)
+- [x] Crear método `construirSystemPromptConEjemplos()`
+- [x] Crear método `mensajeAyuda()` con fallback amigable
+
+### 10.2 Opción 3 — Groq multi-round (ReAct)
+
+- [ ] Clasificar herramientas MCP en resolvedoras vs finales
+- [ ] Crear método `ejecutarGroqMultiRound()` (bucle hasta 3 rondas)
+- [ ] Modificar `ejecutarHerramientas()` para devolver mensajes `role: 'tool'`
+- [ ] Agregar instrucciones ReAct al system prompt
+
+---
+
 ## RESUMEN DE ESTADO
 
 | Fase | Total Tareas | Hechas | Pendientes | % Completado |
@@ -422,4 +442,5 @@ Leyenda: `[x]` Hecho · `[ ]` Pendiente · `[~]` Parcial
 | **Fase 7: Reportes** | 8 | 0 | 8 | **0%** |
 | **Fase 8: Mejoras** | 8 | 0 | 8 | **0%** |
 | **Fase 9: Testing** | 23 | ~12 | ~11 | **~52%** |
-| **TOTAL** | **224** | **~121** | **~103** | **~54%** |
+| **Fase 10: NLU Chat** | 10 | 5 | 5 | **50%** |
+| **TOTAL** | **234** | **~126** | **~108** | **~54%** |

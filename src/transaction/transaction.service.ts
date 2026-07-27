@@ -15,6 +15,7 @@ import {
   FlowDirection,
   Item,
   Prisma,
+  StockEffect,
 } from '@prisma/client';
 type DbClient = PrismaService | Prisma.TransactionClient;
 
@@ -97,16 +98,20 @@ export class TransactionService {
     const batchIds = [
       ...new Set(data.filter((t) => t.batchId).map((t) => t.batchId!)),
     ];
+    const costItemIds = [
+      ...new Set(data.filter((t) => t.costItemId).map((t) => t.costItemId!)),
+    ];
 
     return await this.prisma.$transaction(async (tx) => {
       // 1. Obtención de datos (secuencial para evitar colisión de conexiones en pg)
       const categories = await tx.category.findMany({
         where: { id: { in: categoryIds }, isRemoved: false },
       });
+      const allItemIds = [...new Set([...itemIds, ...costItemIds])];
       const items =
-        itemIds.length > 0
+        allItemIds.length > 0
           ? await tx.item.findMany({
-              where: { id: { in: itemIds }, companyId, isRemoved: false },
+              where: { id: { in: allItemIds }, companyId, isRemoved: false },
             })
           : [];
       const batches =
@@ -120,8 +125,8 @@ export class TransactionService {
       const itemMap = new Map(items.map((i) => [i.id, i]));
       const batchSet = new Set(batches.map((b) => b.id));
 
-      // 2. Acumular el stock a restar únicamente si es PRODUCT y es INFLOW
-      const stockToDecrement: Record<string, number> = {};
+      // 2. Acumular cambios de stock según stockEffect
+      const stockDelta: Record<string, number> = {};
 
       for (const t of data) {
         const category = categoryMap.get(t.categoryId);
@@ -130,33 +135,57 @@ export class TransactionService {
             `Categoría ${t.categoryId} no encontrada.`,
           );
 
-        // Solo si es PRODUCT y la categoría es de tipo INFLOW (salida de inventario)
-        if (t.itemId) {
+        if (t.costItemId && !itemMap.has(t.costItemId))
+          throw new BadRequestException(
+            `El ítem (costItemId) ${t.costItemId} no existe.`,
+          );
+
+        if (
+          t.itemId &&
+          t.stockEffect &&
+          t.stockEffect !== 'NONE' &&
+          t.quantity
+        ) {
           const item = itemMap.get(t.itemId);
           if (!item)
             throw new BadRequestException(`El ítem ${t.itemId} no existe.`);
 
-          if (item.type === 'PRODUCT' && category.flowDirection === 'INFLOW') {
-            stockToDecrement[t.itemId] =
-              (stockToDecrement[t.itemId] || 0) + (t.quantity ?? 0);
-          }
+          if (item.type !== 'PRODUCT') continue;
+
+          const delta =
+            t.stockEffect === 'INCREMENT' ? t.quantity : -t.quantity;
+          stockDelta[t.itemId] = (stockDelta[t.itemId] ?? 0) + delta;
+        }
+
+        if (t.costItemId && t.stockEffect === 'INCREMENT' && t.quantity) {
+          const item = itemMap.get(t.costItemId);
+          if (!item)
+            throw new BadRequestException(
+              `El ítem (costItemId) ${t.costItemId} no existe.`,
+            );
+
+          if (item.type !== 'PRODUCT') continue;
+
+          stockDelta[t.costItemId] =
+            (stockDelta[t.costItemId] ?? 0) + t.quantity;
         }
       }
 
-      // 3. SECUENCIAL: Actualización de stock solo para productos validados
-      for (const [itemId, totalDecrement] of Object.entries(stockToDecrement)) {
+      // 3. SECUENCIAL: Validar stock suficiente y aplicar cambios
+      for (const [itemId, delta] of Object.entries(stockDelta)) {
+        if (delta === 0) continue;
+
         const item = itemMap.get(itemId)!;
 
-        // Validación estricta de stock
-        if (item.stockCurrent < totalDecrement) {
+        if (delta < 0 && item.stockCurrent < Math.abs(delta)) {
           throw new BadRequestException(
-            `Stock insuficiente para el producto ${item.name}. Disponible: ${item.stockCurrent}, Requerido: ${totalDecrement}`,
+            `Stock insuficiente para el producto ${item.name}. Disponible: ${item.stockCurrent}, Requerido: ${Math.abs(delta)}`,
           );
         }
 
         await tx.item.update({
           where: { id: itemId },
-          data: { stockCurrent: { decrement: totalDecrement } },
+          data: { stockCurrent: { increment: delta } },
         });
       }
 
@@ -171,6 +200,7 @@ export class TransactionService {
             categoryId: t.categoryId,
             itemId: t.itemId,
             batchId: t.batchId,
+            costItemId: t.costItemId,
             quantity: t.quantity,
             unitPrice: t.unitPrice,
             amountUSD: t.amountUSD,
@@ -180,6 +210,7 @@ export class TransactionService {
             currency: t.currency,
             paymentReference: t.paymentReference,
             description: t.description,
+            stockEffect: t.stockEffect ?? 'NONE',
             paymentDate: t.paymentDate ? new Date(t.paymentDate) : null,
             companyId,
             dollarRate: t.dollarRate,
@@ -215,8 +246,13 @@ export class TransactionService {
 
     const data = await this.prisma.transaction.findMany({
       where,
-      orderBy: { createdAt: 'desc' },
-      include: { category: true, item: true, batch: true },
+      orderBy: { paymentDate: 'desc' },
+      include: {
+        category: true,
+        item: true,
+        batch: { include: { item: true } },
+        costItem: true,
+      },
       skip,
       take: limit,
     });
@@ -237,7 +273,12 @@ export class TransactionService {
   async getTransactionById(id: string, companyId: string) {
     const transaction = await this.prisma.transaction.findFirst({
       where: { id, companyId, isRemoved: false },
-      include: { category: true, item: true, batch: true },
+      include: {
+        category: true,
+        item: true,
+        batch: { include: { item: true } },
+        costItem: true,
+      },
     });
 
     if (!transaction) {
@@ -277,10 +318,131 @@ export class TransactionService {
         await this.assertBatchForCompany(tx, data.batchId, companyId);
       }
 
+      if (data.costItemId) {
+        await this.assertItemForCompany(tx, data.costItemId, companyId);
+      }
+
       if (data.amount !== undefined && (!data.currency || !data.dollarRate)) {
         throw new BadRequestException(
           'Para actualizar el monto, debe proporcionar también currency y dollarRate.',
         );
+      }
+
+      // --- Stock reversal logic ---
+      const toDelta = (
+        itemId: string | null | undefined,
+        qty: number | null | undefined,
+        effect: string | null | undefined,
+      ): number => {
+        if (!itemId || !effect || effect === StockEffect.NONE) return 0;
+        const q = qty ?? 0;
+        return effect === StockEffect.INCREMENT ? q : -q;
+      };
+
+      const oldItemId = transaction.itemId;
+      const oldQuantity = transaction.quantity ?? 0;
+      const oldStockEffect = transaction.stockEffect ?? StockEffect.NONE;
+      const oldDelta = toDelta(oldItemId, oldQuantity, oldStockEffect);
+
+      const newItemId = data.itemId !== undefined ? data.itemId : oldItemId;
+      const newQuantity =
+        data.quantity !== undefined ? data.quantity : oldQuantity;
+      const newStockEffect =
+        data.stockEffect !== undefined ? data.stockEffect : oldStockEffect;
+      const newDelta = toDelta(newItemId, newQuantity, newStockEffect);
+
+      const oldCostItemId = transaction.costItemId;
+      const oldCostItemDelta = toDelta(
+        oldCostItemId,
+        oldQuantity,
+        oldStockEffect,
+      );
+      const newCostItemId =
+        data.costItemId !== undefined ? data.costItemId : oldCostItemId;
+      const newCostItemDelta = toDelta(
+        newCostItemId,
+        newQuantity,
+        newStockEffect,
+      );
+
+      const stockChanged =
+        data.itemId !== undefined ||
+        data.quantity !== undefined ||
+        data.stockEffect !== undefined;
+
+      if (stockChanged) {
+        if (oldItemId && newItemId && oldItemId === newItemId) {
+          const netDelta = newDelta - oldDelta;
+          if (netDelta !== 0) {
+            if (netDelta < 0) {
+              const item = await tx.item.findUnique({
+                where: { id: newItemId, companyId, isRemoved: false },
+                select: { stockCurrent: true, name: true },
+              });
+              if (!item)
+                throw new BadRequestException(
+                  `El ítem ${newItemId} no existe.`,
+                );
+              if (item.stockCurrent < Math.abs(netDelta)) {
+                throw new BadRequestException(
+                  `Stock insuficiente para el producto ${item.name}. Disponible: ${item.stockCurrent}, Requerido: ${Math.abs(netDelta)}`,
+                );
+              }
+            }
+            await tx.item.update({
+              where: { id: newItemId },
+              data: { stockCurrent: { increment: netDelta } },
+            });
+          }
+        } else {
+          if (oldItemId && oldDelta !== 0) {
+            await tx.item.update({
+              where: { id: oldItemId },
+              data: { stockCurrent: { increment: -oldDelta } },
+            });
+          }
+          if (newItemId && newDelta !== 0) {
+            if (newDelta < 0) {
+              const item = await tx.item.findUnique({
+                where: { id: newItemId, companyId, isRemoved: false },
+                select: { stockCurrent: true, name: true },
+              });
+              if (!item)
+                throw new BadRequestException(
+                  `El ítem ${newItemId} no existe.`,
+                );
+              if (item.stockCurrent < Math.abs(newDelta)) {
+                throw new BadRequestException(
+                  `Stock insuficiente para el producto ${item.name}. Disponible: ${item.stockCurrent}, Requerido: ${Math.abs(newDelta)}`,
+                );
+              }
+            }
+            await tx.item.update({
+              where: { id: newItemId },
+              data: { stockCurrent: { increment: newDelta } },
+            });
+          }
+        }
+      }
+
+      const costItemStockChanged =
+        data.costItemId !== undefined ||
+        data.quantity !== undefined ||
+        data.stockEffect !== undefined;
+
+      if (costItemStockChanged && oldCostItemId) {
+        if (oldCostItemDelta !== 0) {
+          await tx.item.update({
+            where: { id: oldCostItemId },
+            data: { stockCurrent: { increment: -oldCostItemDelta } },
+          });
+        }
+        if (newCostItemId && newCostItemDelta !== 0) {
+          await tx.item.update({
+            where: { id: newCostItemId },
+            data: { stockCurrent: { increment: newCostItemDelta } },
+          });
+        }
       }
 
       const updatePayload: Prisma.TransactionUpdateInput = {};
@@ -297,6 +459,11 @@ export class TransactionService {
           ? { connect: { id: data.batchId } }
           : { disconnect: true };
       }
+      if (data.costItemId !== undefined) {
+        updatePayload.costItem = data.costItemId
+          ? { connect: { id: data.costItemId } }
+          : { disconnect: true };
+      }
       if (data.quantity !== undefined) updatePayload.quantity = data.quantity;
       if (data.unitPrice !== undefined)
         updatePayload.unitPrice = data.unitPrice;
@@ -305,6 +472,8 @@ export class TransactionService {
         updatePayload.paymentMethod = data.paymentMethod;
       if (data.description !== undefined)
         updatePayload.description = data.description;
+      if (data.stockEffect !== undefined)
+        updatePayload.stockEffect = data.stockEffect;
       if (data.paymentDate !== undefined) {
         updatePayload.paymentDate = data.paymentDate
           ? new Date(data.paymentDate)
@@ -370,7 +539,12 @@ export class TransactionService {
       const updated = await tx.transaction.update({
         where: { id },
         data: updatePayload,
-        include: { category: true, item: true, batch: true },
+        include: {
+          category: true,
+          item: true,
+          batch: { include: { item: true } },
+          costItem: true,
+        },
       });
 
       if (deltaUSD !== 0 || deltaBs !== 0) {
@@ -398,6 +572,39 @@ export class TransactionService {
     }
 
     return await this.prisma.$transaction(async (tx) => {
+      // Revertir stock
+      if (
+        transaction.itemId &&
+        transaction.stockEffect &&
+        transaction.stockEffect !== StockEffect.NONE
+      ) {
+        const qty = transaction.quantity ?? 0;
+        const delta =
+          transaction.stockEffect === StockEffect.INCREMENT ? -qty : qty;
+        if (delta !== 0) {
+          await tx.item.update({
+            where: { id: transaction.itemId },
+            data: { stockCurrent: { increment: delta } },
+          });
+        }
+      }
+
+      if (
+        transaction.costItemId &&
+        transaction.stockEffect &&
+        transaction.stockEffect !== StockEffect.NONE
+      ) {
+        const qty = transaction.quantity ?? 0;
+        const delta =
+          transaction.stockEffect === StockEffect.INCREMENT ? -qty : qty;
+        if (delta !== 0) {
+          await tx.item.update({
+            where: { id: transaction.costItemId },
+            data: { stockCurrent: { increment: delta } },
+          });
+        }
+      }
+
       const result = await tx.transaction.update({
         where: { id },
         data: { isRemoved: true },
@@ -477,10 +684,7 @@ export class TransactionService {
       include: { category: true },
     });
 
-    const monthlyMap = new Map<
-      string,
-      { revenue: number; expenses: number }
-    >();
+    const monthlyMap = new Map<string, { revenue: number; expenses: number }>();
 
     for (const t of transactions) {
       const d = t.paymentDate ?? t.createdAt;
@@ -518,7 +722,12 @@ export class TransactionService {
     return this.prisma.transaction.findMany({
       where: { companyId, categoryId, isRemoved: false },
       orderBy: { createdAt: 'desc' },
-      include: { category: true, item: true, batch: true },
+      include: {
+        category: true,
+        item: true,
+        batch: { include: { item: true } },
+        costItem: true,
+      },
     });
   }
 }

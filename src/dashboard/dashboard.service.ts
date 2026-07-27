@@ -60,9 +60,7 @@ export class DashboardService {
       return d >= prevStartDate && d <= prevEndDate;
     });
 
-    const aggregate = (
-      txns: typeof monthlyTransactions,
-    ) => {
+    const aggregate = (txns: typeof monthlyTransactions) => {
       let inflowUsd = 0;
       let inflowBs = 0;
       let outflowUsd = 0;
@@ -112,7 +110,9 @@ export class DashboardService {
         amountUSD: Number(t.amountUSD),
         amountBs: Number(t.amountBs),
         status: t.status,
-        date: t.createdAt.toISOString(),
+        date: t.paymentDate
+          ? t.paymentDate.toISOString()
+          : t.createdAt.toISOString(),
         category: t.category.name,
       })),
       period: {

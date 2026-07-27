@@ -70,15 +70,22 @@ export class GroqAgentService {
           companyId,
         );
       }
-
-      return (
-        'No identifiqué qué dato consultar. Ejemplos:\n' +
-        '- "lista las categorías"\n' +
-        '- "stock de camisa oversize"\n' +
-        '- "listar productos"'
-      );
     }
 
+    return this.ejecutarFallbackGroq(
+      preguntaUsuario,
+      companyId,
+      serverHandlers,
+      requiereDatos,
+    );
+  }
+
+  private async ejecutarFallbackGroq(
+    preguntaUsuario: string,
+    companyId: string,
+    serverHandlers: any[],
+    requiereDatos: boolean,
+  ): Promise<string> {
     const tools = serverHandlers.map((tool: any) => ({
       type: 'function' as const,
       function: {
@@ -89,15 +96,12 @@ export class GroqAgentService {
     }));
 
     const hoy = new Date().toISOString().split('T')[0];
-    const systemMessage = {
-      role: 'system' as const,
-      content: `Eres un asistente financiero amable. Fecha: ${hoy}. Responde brevemente en español.`,
-    };
+    const systemPrompt = this.construirSystemPromptConEjemplos(hoy);
 
     try {
       const choice = await this.llamarGroq(
         [
-          { role: 'system' as const, content: systemMessage.content },
+          { role: 'system' as const, content: systemPrompt },
           { role: 'user' as const, content: preguntaUsuario },
         ],
         tools,
@@ -116,14 +120,46 @@ export class GroqAgentService {
         );
       }
 
-      return (
-        choice.message.content ??
-        'Hola. Puedo ayudarte con stock, precios, márgenes, transacciones y flujo de caja.'
-      );
+      return choice.message.content ?? this.mensajeAyuda(requiereDatos);
     } catch (error) {
-      this.logger.warn(`Groq falló en conversación general: ${error}`);
-      return 'Hola. Puedo ayudarte con stock, precios, márgenes, transacciones y flujo de caja. ¿Qué necesitas consultar?';
+      this.logger.warn(`Groq fallback error: ${error}`);
+      return this.mensajeAyuda(requiereDatos);
     }
+  }
+
+  private construirSystemPromptConEjemplos(hoy: string): string {
+    return [
+      `Eres un asistente financiero para una empresa. Fecha actual: ${hoy}.`,
+      '',
+      'IMPORTANTE: Cuando el usuario mencione un producto, servicio o categoría',
+      'por su nombre, usa search_item_by_name(name="...") o',
+      'search_category_by_name(name="...") para buscarlo en la base de datos.',
+      '',
+      'REGLAS:',
+      '- Si preguntan por stock, precio, inventario, existencia → search_item_by_name',
+      '- Si preguntan por listados → list_products, list_services, list_categories',
+      '- Si preguntan por margen/rentabilidad de X → search_item_by_name + get_service/product_margin',
+      '- Si preguntan por flujo de caja → get_total_cash_flow',
+      '- Si preguntan por punto de equilibrio → get_break_even_point',
+      '- Si preguntan por lotes de X → search_item_by_name + get_batches_by_product',
+      '- Si preguntan por transacciones de categoría X → search_category_by_name + get_transactions_by_category',
+      '- Si preguntan por costos → get_unit_cost_by_product/service/batch',
+      '',
+      'Responde SIEMPRE en español, de forma breve y amable.',
+      'No inventes datos. Usa las herramientas disponibles.',
+    ].join('\n');
+  }
+
+  private mensajeAyuda(requiereDatos: boolean): string {
+    if (requiereDatos) {
+      return (
+        'No identifiqué qué dato consultar. Ejemplos:\n' +
+        '- "lista las categorías"\n' +
+        '- "stock de camisa oversize"\n' +
+        '- "listar productos"'
+      );
+    }
+    return 'Hola. Puedo ayudarte con stock, precios, márgenes, transacciones y flujo de caja. ¿Qué necesitas consultar?';
   }
 
   private async ejecutarYFormatear(
@@ -768,6 +804,19 @@ export class GroqAgentService {
       'ganancia',
       'perdida',
       'utilidad',
+      'dame',
+      'que',
+      'cual',
+      'quiero',
+      'necesito',
+      'hay',
+      'tengo',
+      'informacion',
+      'detalle',
+      'resumen',
+      'sobre',
+      'pasame',
+      'muestra',
     ];
 
     return (

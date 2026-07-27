@@ -10,10 +10,7 @@ import {
 } from '@nestjs/common';
 import { ProductionBatchService } from './production_batch.service';
 import { AuthGuard } from '@nestjs/passport';
-import {
-  CreateBatchWithTransactionsDto,
-  UpdateBatchDto,
-} from './dto/batch.dto';
+import { CreateBatchDto, UpdateBatchDto } from './dto/batch.dto';
 import { ValidateCompanyGuard } from '@/company/guards/validate-company/validate-company.guard';
 import { PaginationDto } from '@/common/dto/pagination.dto';
 import { Throttle } from '@nestjs/throttler';
@@ -25,12 +22,12 @@ export class ProductionBatchController {
   @UseGuards(AuthGuard('jwt'), ValidateCompanyGuard)
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @Post('create/:companyId/:itemId')
-  async createBatchWithTransactions(
+  async createBatch(
     @Param('companyId') companyId: string,
     @Param('itemId') itemId: string,
-    @Body() dto: CreateBatchWithTransactionsDto,
+    @Body() dto: CreateBatchDto,
   ) {
-    return await this.productionBatchService.createBatchAndTransactions(
+    return await this.productionBatchService.createBatch(
       companyId,
       itemId,
       dto,

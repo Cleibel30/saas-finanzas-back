@@ -12,8 +12,15 @@ import {
   Min,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { TransactionStatus, PaymentMethod, Currency } from '@prisma/client';
+import {
+  StockEffect,
+  TransactionStatus,
+  PaymentMethod,
+  Currency,
+} from '@prisma/client';
+import { ExclusiveItem } from '../validators/exclusive-item.validator';
 
+@ExclusiveItem()
 export class CreateTransactionDto {
   @IsUUID()
   @IsNotEmpty()
@@ -26,6 +33,10 @@ export class CreateTransactionDto {
   @IsUUID()
   @IsOptional()
   batchId?: string;
+
+  @IsUUID()
+  @IsOptional()
+  costItemId?: string;
 
   @IsNumber()
   @IsOptional()
@@ -76,11 +87,16 @@ export class CreateTransactionDto {
   @MaxLength(100)
   description?: string;
 
+  @IsOptional()
+  @IsEnum(StockEffect)
+  stockEffect?: StockEffect;
+
   @IsDateString()
   @IsOptional()
   paymentDate?: string;
 }
 
+@ExclusiveItem()
 export class UpdateTransactionDto {
   @IsUUID()
   @IsOptional()
@@ -93,6 +109,10 @@ export class UpdateTransactionDto {
   @IsUUID()
   @IsOptional()
   batchId?: string;
+
+  @IsUUID()
+  @IsOptional()
+  costItemId?: string;
 
   @IsNumber()
   @IsOptional()
@@ -137,6 +157,10 @@ export class UpdateTransactionDto {
   @MinLength(3)
   @MaxLength(100)
   description?: string;
+
+  @IsOptional()
+  @IsEnum(StockEffect)
+  stockEffect?: StockEffect;
 
   @IsDateString()
   @IsOptional()

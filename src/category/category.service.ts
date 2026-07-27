@@ -1,6 +1,7 @@
 import { CompanyService } from '@/company/company.service';
 import { PrismaService } from '@/prisma/prisma.service';
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   UnauthorizedException,
@@ -15,11 +16,7 @@ export class CategoryService {
     private companyService: CompanyService,
   ) {}
 
-  async createCategory(
-    categoryData: CreateCategoryDto,
-    userId: string,
-    companyId: string,
-  ) {
+  async createCategory(categoryData: CreateCategoryDto, companyId: string) {
     const alreadyExists = await this.prisma.category.findFirst({
       where: {
         name: categoryData.name,
@@ -39,17 +36,13 @@ export class CategoryService {
         flowDirection: categoryData.flowDirection,
         isVariable: categoryData.isVariable ?? false,
         isCogs: categoryData.isCogs ?? false,
+        isDirectCost: categoryData.isDirectCost ?? false,
         companyId,
       },
     });
   }
 
-  async getCategoriesByCompany(
-    companyId: string,
-    userId: string,
-    page = 1,
-    limit = 50,
-  ) {
+  async getCategoriesByCompany(companyId: string, page = 1, limit = 50) {
     const skip = (page - 1) * limit;
     const where = {
       OR: [{ companyId, isRemoved: false }, { isDefault: true }],
@@ -92,6 +85,20 @@ export class CategoryService {
     });
 
     if (!category) throw new UnauthorizedException('Category not found.');
+
+    const effectiveFlowDirection =
+      updateData.flowDirection ?? category.flowDirection;
+    const wouldBeInflowWithFlags =
+      effectiveFlowDirection === 'INFLOW' &&
+      (updateData.isCogs === true ||
+        updateData.isVariable === true ||
+        updateData.isDirectCost === true);
+
+    if (wouldBeInflowWithFlags) {
+      throw new BadRequestException(
+        'INFLOW categories cannot have isCogs, isVariable, or isDirectCost set to true.',
+      );
+    }
 
     return this.prisma.category.update({
       where: { id: categoryId, companyId, isRemoved: false },
@@ -146,6 +153,7 @@ export class CategoryService {
         type: true,
         flowDirection: true,
         isCogs: true,
+        isDirectCost: true,
         isDefault: true,
       },
     });
@@ -167,6 +175,7 @@ export class CategoryService {
       type: String(row.type),
       flowDirection: String(row.flowDirection ?? row.flow_direction),
       isCogs: Boolean(row.isCogs ?? row.is_cogs),
+      isDirectCost: Boolean(row.isDirectCost ?? row.is_direct_cost),
       isDefault: Boolean(row.isDefault ?? row.is_default),
     }));
   }
@@ -201,6 +210,7 @@ export class CategoryService {
         type: category.type,
         flowDirection: category.flowDirection,
         isCogs: category.isCogs,
+        isDirectCost: category.isDirectCost,
         isDefault: category.isDefault,
       })),
     };

@@ -7,7 +7,9 @@ import {
   IsString,
   MaxLength,
   MinLength,
+  Validate,
 } from 'class-validator';
+import { CategoryFlowValidator } from '../validators/category-flow.validator';
 
 export class CreateCategoryDto {
   @IsString()
@@ -20,6 +22,10 @@ export class CreateCategoryDto {
   type!: CategoryType;
 
   @IsEnum(FlowDirection)
+  @Validate(CategoryFlowValidator, {
+    message:
+      'INFLOW categories cannot have isCogs, isVariable, or isDirectCost set to true.',
+  })
   flowDirection!: FlowDirection;
 
   @IsBoolean()
@@ -27,6 +33,9 @@ export class CreateCategoryDto {
 
   @IsBoolean()
   isCogs!: boolean;
+
+  @IsBoolean()
+  isDirectCost?: boolean;
 }
 
 export class UpdateCategoryDto {
@@ -39,6 +48,10 @@ export class UpdateCategoryDto {
   type?: CategoryType;
 
   @IsEnum(FlowDirection)
+  @Validate(CategoryFlowValidator, {
+    message:
+      'INFLOW categories cannot have isCogs, isVariable, or isDirectCost set to true.',
+  })
   flowDirection?: FlowDirection;
 
   @IsBoolean()
@@ -46,4 +59,7 @@ export class UpdateCategoryDto {
 
   @IsBoolean()
   isCogs?: boolean;
+
+  @IsBoolean()
+  isDirectCost?: boolean;
 }

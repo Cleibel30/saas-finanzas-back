@@ -37,6 +37,12 @@ enum BatchStatus {
   CLOSED
 }
 
+enum StockEffect {
+  INCREMENT
+  DECREMENT
+  NONE
+}
+
 enum TransactionStatus {
   PENDING
   COMPLETED
@@ -140,7 +146,8 @@ model Category {
   type          CategoryType
   flowDirection FlowDirection @map("flow_direction")
   isCogs        Boolean       @default(false) @map("is_cogs")
-  isVariable    Boolean        @default(false) @map("is_variable")
+  isVariable    Boolean       @default(false) @map("is_variable")
+  isDirectCost  Boolean       @default(false) @map("is_direct_cost")
   isDefault     Boolean       @default(false) @map("is_default")
   isRemoved     Boolean       @default(false) @map("is_removed")
   createdAt     DateTime      @default(now()) @map("created_at")
@@ -166,7 +173,8 @@ model Item {
 
   company           Company           @relation(fields: [companyId], references: [id])
   productionBatches ProductionBatch[]
-  transactions      Transaction[]
+  transactions      Transaction[]     @relation("TransactionItem")
+  costTransactions  Transaction[]     @relation("TransactionCostItem")
 
   @@index([companyId, isRemoved])
   @@index([companyId, type, isRemoved])
@@ -201,6 +209,7 @@ model Transaction {
   categoryId  String            @map("category_id") @db.Uuid
   itemId      String?           @map("item_id") @db.Uuid
   batchId     String?           @map("batch_id") @db.Uuid
+  costItemId  String?           @map("cost_item_id") @db.Uuid
   quantity    Int?
   unitPrice   Decimal?          @map("unit_price") @db.Decimal(10, 2)
   dollarRate   Decimal          @default(0) @map("dollar_rate") @db.Decimal(10, 2)
@@ -211,14 +220,16 @@ model Transaction {
   currency         Currency
   paymentReference String?            @map("payment_reference")
   description      String?
+  stockEffect      StockEffect        @default(NONE) @map("stock_effect")
   paymentDate      DateTime?          @map("payment_date")
   isRemoved        Boolean            @default(false) @map("is_removed")
   createdAt   DateTime          @default(now()) @map("created_at")
 
   company  Company          @relation(fields: [companyId], references: [id])
   category Category         @relation(fields: [categoryId], references: [id])
-  item     Item?            @relation(fields: [itemId], references: [id])
+  item     Item?            @relation("TransactionItem", fields: [itemId], references: [id])
   batch    ProductionBatch? @relation(fields: [batchId], references: [id])
+  costItem Item?            @relation("TransactionCostItem", fields: [costItemId], references: [id])
 
   @@index([companyId, isRemoved, createdAt])
   @@index([companyId, categoryId, isRemoved])
