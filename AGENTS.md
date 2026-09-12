@@ -54,7 +54,7 @@ npx prisma studio --schema=prisma/schema.prisma
 - Two roles: `USER` (creates companies, operates data) and `ADMIN` (global management, no company operations)
 - Multi-currency: each `Transaction` stores both `amountUSD` and `amountBs` with `dollarRate`
 - Stock: `PRODUCT` items with `INFLOW` categories decrement `stockCurrent` on transaction/batch creation
-- Finance chat uses a 4-stage routing: chain detection → regex → keyword → Groq LLM fallback
+- Finance chat uses a 4-stage routing: chain detection → regex → keyword → Cohere LLM fallback
 
 ## Env Vars (key ones)
 
@@ -67,6 +67,7 @@ npx prisma studio --schema=prisma/schema.prisma
 | `SUPABASE_JWT_AUDIENCE` | Defaults to `authenticated` |
 | `FRONTEND_URL` | CORS origins (comma-separated) |
 | `ADMIN_SECRET_KEY` | Secret for admin registration |
+| `CO_API_KEY` | Cohere API key for LLM (Command A) |
 | `MCP_HTTP_ENABLED` | MCP HTTP SSE server (default: `false`) |
 
 ## SPEC.md

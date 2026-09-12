@@ -5,6 +5,7 @@ import { GrossProfitService } from './gross-profit.service';
 import {
   GrossProfitGeneralDto,
   GrossProfitItemDto,
+  GrossProfitBatchDto,
 } from './dto/gross-profit.dto';
 
 @Controller('gross-profit')
@@ -40,6 +41,15 @@ export class GrossProfitController {
       params.companyId,
       params.startDate,
       params.endDate,
+    );
+  }
+
+  @UseGuards(AuthGuard('jwt'), ValidateCompanyGuard)
+  @Get('batch/:batchId/:companyId')
+  async getBatchGrossProfit(@Param() params: GrossProfitBatchDto) {
+    return this.grossProfitService.getBatchGrossProfit(
+      params.batchId,
+      params.companyId,
     );
   }
 }

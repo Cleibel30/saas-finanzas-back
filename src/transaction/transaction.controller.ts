@@ -8,19 +8,16 @@ import {
   Patch,
   Post,
   Query,
-  Req,
   UseGuards,
 } from '@nestjs/common';
 import { TransactionService } from './transaction.service';
 import {
   CreateTransactionDto,
-  GetTransactionsByDateRangeDto,
   UpdateTransactionDto,
 } from './dto/transaction.dto';
+import { GetTransactionsFilteredDto } from './dto/get-transactions-filtered.dto';
 import { AuthGuard } from '@nestjs/passport';
-import { UserDto } from '@/auth/dto/user.dto';
 import { ValidateCompanyGuard } from '@/company/guards/validate-company/validate-company.guard';
-import { PaginationDto } from '@/common/dto/pagination.dto';
 import { Throttle } from '@nestjs/throttler';
 
 @Controller('transaction')
@@ -45,13 +42,9 @@ export class TransactionController {
   @Get('get-all/:companyId')
   async getTransactionsByCompany(
     @Param('companyId') companyId: string,
-    @Query() pagination: PaginationDto,
+    @Query() filters: GetTransactionsFilteredDto,
   ) {
-    return this.transactionService.getTransactionsByCompany(
-      companyId,
-      pagination.page,
-      pagination.limit,
-    );
+    return this.transactionService.getTransactionsByCompany(companyId, filters);
   }
 
   @UseGuards(AuthGuard('jwt'), ValidateCompanyGuard)
@@ -84,29 +77,5 @@ export class TransactionController {
     @Param('transactionId') transactionId: string,
   ) {
     return this.transactionService.deleteTransaction(transactionId, companyId);
-  }
-
-  @UseGuards(AuthGuard('jwt'), ValidateCompanyGuard)
-  @Get('get-by-date-range/:companyId/:startDate/:endDate')
-  async getTransactionsByDateRange(
-    @Param() paramas: GetTransactionsByDateRangeDto,
-  ) {
-    return this.transactionService.getTransactionsByDateRange(
-      paramas.companyId,
-      paramas.startDate,
-      paramas.endDate,
-    );
-  }
-
-  @UseGuards(AuthGuard('jwt'), ValidateCompanyGuard)
-  @Get('get-by-date-category/:companyId/:categoryId')
-  async getTransactionsByCategory(
-    @Param('companyId') companyId: string,
-    @Param('categoryId') categoryId: string,
-  ) {
-    return this.transactionService.getTransactionsByCategory(
-      companyId,
-      categoryId,
-    );
   }
 }

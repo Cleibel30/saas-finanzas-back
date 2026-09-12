@@ -47,7 +47,10 @@ export class DashboardService {
           endDate,
         ),
         this.netProfitService.getNetProfit(companyId, startDate, endDate),
-        this.transactionService.getTransactionsByCompany(companyId, 1, 5),
+        this.transactionService.getTransactionsByCompany(companyId, {
+          page: 1,
+          limit: 5,
+        }),
       ]);
 
     const currentMonthTx = monthlyTransactions.filter((t) => {

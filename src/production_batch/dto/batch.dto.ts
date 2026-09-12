@@ -20,8 +20,14 @@ export class CreateBatchDto {
 
 export class UpdateBatchDto {
   @IsOptional()
+  @Min(0)
   quantity?: number;
+
+  @IsOptional()
+  @IsEnum(BatchStatus)
   status?: BatchStatus;
+
+  @IsOptional()
   @IsDateString()
   batchDate?: Date;
 }

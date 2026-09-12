@@ -4,12 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
-import {
-  TransactionStatus,
-  FlowDirection,
-  BatchStatus,
-  ItemType,
-} from '@prisma/client';
+import { TransactionStatus, FlowDirection, ItemType } from '@prisma/client';
 
 @Injectable()
 export class UnitCostService {
@@ -64,17 +59,15 @@ export class UnitCostService {
     if (item.type === ItemType.SERVICE)
       throw new BadRequestException('The specified item is a service.');
 
-    const closedBatches = await this.prisma.productionBatch.findMany({
+    const batches = await this.prisma.productionBatch.findMany({
       where: {
         itemId,
         companyId,
-        status: BatchStatus.CLOSED,
         isRemoved: false,
       },
-      include: { transactions: true },
     });
 
-    if (closedBatches.length === 0) {
+    if (batches.length === 0) {
       return {
         itemId: item.id,
         itemName: item.name,
@@ -91,7 +84,7 @@ export class UnitCostService {
     let totalCostUSD = 0;
     let totalCostBs = 0;
 
-    for (const batch of closedBatches) {
+    for (const batch of batches) {
       const outflowAgg = await this.prisma.transaction.aggregate({
         _sum: { amountUSD: true, amountBs: true },
         where: {
@@ -113,7 +106,7 @@ export class UnitCostService {
     return {
       itemId: item.id,
       itemName: item.name,
-      totalBatches: closedBatches.length,
+      totalBatches: batches.length,
       totalQuantity,
       totalCostUSD: Number(totalCostUSD.toFixed(2)),
       totalCostBs: Number(totalCostBs.toFixed(2)),

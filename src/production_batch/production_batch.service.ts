@@ -97,8 +97,8 @@ export class ProductionBatchService {
 
   //Actualizar un lote específico
   async updateBatch(
-    batchId: string,
     companyId: string,
+    batchId: string,
     updateData: UpdateBatchDto,
   ) {
     const findBatch = await this.prisma.productionBatch.findUnique({
@@ -109,7 +109,12 @@ export class ProductionBatchService {
 
     return this.prisma.productionBatch.update({
       where: { id: batchId, companyId, isRemoved: false },
-      data: { ...updateData },
+      data: {
+        ...updateData,
+        batchDate: updateData.batchDate
+          ? new Date(updateData.batchDate)
+          : undefined,
+      },
     });
   }
 

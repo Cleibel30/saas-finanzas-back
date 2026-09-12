@@ -274,8 +274,12 @@ export class McpService implements OnModuleInit {
       'list_transactions',
       'Lista todas las transacciones activas de la empresa con categoría, ítem y lote.',
       emptySchema,
-      async ({ companyId }) =>
-        this.transactionService.getTransactionsByCompany(companyId as string),
+      async ({ companyId }) => {
+        const result = await this.transactionService.getTransactionsByCompany(
+          companyId as string,
+        );
+        return result.data;
+      },
     );
 
     this.registrarHerramienta(
@@ -397,6 +401,17 @@ export class McpService implements OnModuleInit {
           companyId as string,
           new Date(startDate as string),
           new Date(endDate as string),
+        ),
+    );
+
+    this.registrarHerramienta(
+      'get_batch_gross_profit',
+      'Calcula la utilidad bruta de un lote de producción específico (Ventas Netas - COGS del lote).',
+      batchIdSchema,
+      async ({ companyId, batchId }) =>
+        this.grossProfitService.getBatchGrossProfit(
+          batchId as string,
+          companyId as string,
         ),
     );
 

@@ -32,6 +32,12 @@ enum ItemType {
   SERVICE
 }
 
+enum CategoryItemScope {
+  PRODUCT
+  SERVICE
+  NONE
+}
+
 enum BatchStatus {
   OPEN
   CLOSED
@@ -140,17 +146,18 @@ model Company {
 }
 
 model Category {
-  id            String        @id @default(uuid()) @db.Uuid
-  companyId     String?       @map("company_id") @db.Uuid
+  id            String              @id @default(uuid()) @db.Uuid
+  companyId     String?             @map("company_id") @db.Uuid
   name          String
   type          CategoryType
-  flowDirection FlowDirection @map("flow_direction")
-  isCogs        Boolean       @default(false) @map("is_cogs")
-  isVariable    Boolean       @default(false) @map("is_variable")
-  isDirectCost  Boolean       @default(false) @map("is_direct_cost")
-  isDefault     Boolean       @default(false) @map("is_default")
-  isRemoved     Boolean       @default(false) @map("is_removed")
-  createdAt     DateTime      @default(now()) @map("created_at")
+  flowDirection FlowDirection       @map("flow_direction")
+  itemType      CategoryItemScope   @default(NONE) @map("item_type")
+  isCogs        Boolean             @default(false) @map("is_cogs")
+  isVariable    Boolean             @default(false) @map("is_variable")
+  isDirectCost  Boolean             @default(false) @map("is_direct_cost")
+  isDefault     Boolean             @default(false) @map("is_default")
+  isRemoved     Boolean             @default(false) @map("is_removed")
+  createdAt     DateTime            @default(now()) @map("created_at")
 
   company      Company?      @relation(fields: [companyId], references: [id])
   transactions Transaction[]

@@ -16,6 +16,12 @@ const PRISMA_TO_HTTP: Record<string, HttpStatus> = {
 @Catch(Prisma.PrismaClientKnownRequestError)
 export class PrismaClientExceptionFilter implements ExceptionFilter {
   catch(exception: Prisma.PrismaClientKnownRequestError, host: ArgumentsHost) {
+    console.error('[PrismaException]', {
+      code: exception.code,
+      message: exception.message,
+      meta: exception.meta,
+    });
+
     const ctx = host.switchToHttp();
     const response = ctx.getResponse();
     const status =

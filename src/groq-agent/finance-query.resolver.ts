@@ -62,6 +62,11 @@ export function extraerRangoFechas(pregunta: string): RangoFechas {
     return { startDate: formato(inicio), endDate: formato(fin) };
   }
 
+  if (/este\s+mes|mes\s+actual|del\s+mes|en\s+este\s+mes/.test(q)) {
+    const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+    return { startDate: formato(inicioMes), endDate: formato(hoy) };
+  }
+
   if (/ultimos?\s+30\s+d[ií]as|últimos?\s+30\s+d[ií]as/.test(q)) {
     const inicio = new Date(hoy);
     inicio.setDate(inicio.getDate() - 30);
@@ -78,9 +83,10 @@ export function extraerRangoFechas(pregunta: string): RangoFechas {
     return { startDate: formato(hoy), endDate: formato(hoy) };
   }
 
-  // Por defecto: mes en curso
-  const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
-  return { startDate: formato(inicioMes), endDate: formato(hoy) };
+  // Por defecto: últimos 30 días
+  const inicio = new Date(hoy);
+  inicio.setDate(inicio.getDate() - 30);
+  return { startDate: formato(inicio), endDate: formato(hoy) };
 }
 
 export function extraerNombreEntidad(pregunta: string): string | null {

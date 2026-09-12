@@ -9,6 +9,7 @@ import {
   CreateTransactionDto,
   UpdateTransactionDto,
 } from './dto/transaction.dto';
+import { GetTransactionsFilteredDto } from './dto/get-transactions-filtered.dto';
 import {
   Category,
   Currency,
@@ -16,7 +17,9 @@ import {
   Item,
   Prisma,
   StockEffect,
+  TransactionStatus,
 } from '@prisma/client';
+import { dec, Money, isZero, mul, roundCents } from '@/common/utils/money';
 type DbClient = PrismaService | Prisma.TransactionClient;
 
 @Injectable()
@@ -77,17 +80,55 @@ export class TransactionService {
     }
   }
 
-  calculateAmounts(amount: number, currency: Currency, dollarRate: number) {
+  calculateAmounts(
+    amount: number,
+    currency: Currency,
+    dollarRate: number,
+  ): { amountUSD: Money; amountBs: Money } {
+    const value = dec(amount);
+    const rate = dec(dollarRate);
     if (currency === Currency.DOLARES) {
       return {
-        amountUSD: amount,
-        amountBs: amount * dollarRate,
+        amountUSD: roundCents(value),
+        amountBs: roundCents(value.mul(rate)),
       };
     }
     return {
-      amountUSD: dollarRate > 0 ? amount / dollarRate : 0,
-      amountBs: amount,
+      amountUSD: rate.gt(0)
+        ? roundCents(value.div(rate))
+        : new Prisma.Decimal(0),
+      amountBs: roundCents(value),
     };
+  }
+
+  private resolveAmounts(args: {
+    unitPrice?: number | null;
+    quantity?: number | null;
+    currency: Currency;
+    dollarRate: number;
+    amountUSD: number;
+    amountBs: number;
+  }): { amountUSD: Money; amountBs: Money } {
+    const { unitPrice, quantity, currency, dollarRate } = args;
+
+    if (unitPrice != null && quantity != null && quantity > 0) {
+      const subtotal = roundCents(mul(unitPrice, quantity));
+      const rate = dec(dollarRate);
+      if (currency === Currency.DOLARES) {
+        return {
+          amountUSD: subtotal,
+          amountBs: roundCents(subtotal.mul(rate)),
+        };
+      }
+      return {
+        amountUSD: rate.gt(0)
+          ? roundCents(subtotal.div(rate))
+          : new Prisma.Decimal(0),
+        amountBs: subtotal,
+      };
+    }
+
+    return { amountUSD: dec(args.amountUSD), amountBs: dec(args.amountBs) };
   }
 
   async createTransactions(data: CreateTransactionDto[], companyId: string) {
@@ -134,6 +175,18 @@ export class TransactionService {
           throw new NotFoundException(
             `Categoría ${t.categoryId} no encontrada.`,
           );
+
+        if (t.itemId && category.itemType !== 'NONE') {
+          const item = itemMap.get(t.itemId);
+          if (!item)
+            throw new BadRequestException(`El ítem ${t.itemId} no existe.`);
+
+          if (item.type !== category.itemType) {
+            throw new BadRequestException(
+              `La categoría "${category.name}" solo acepta ítems tipo ${category.itemType}. El ítem "${item.name}" es tipo ${item.type}.`,
+            );
+          }
+        }
 
         if (t.costItemId && !itemMap.has(t.costItemId))
           throw new BadRequestException(
@@ -191,10 +244,18 @@ export class TransactionService {
 
       // 4. SECUENCIAL: Creación de registros de transacciones
       const results = [];
-      let deltaUSD = 0;
-      let deltaBs = 0;
+      let deltaUSD: Money = new Prisma.Decimal(0);
+      let deltaBs: Money = new Prisma.Decimal(0);
 
       for (const t of data) {
+        const amounts = this.resolveAmounts({
+          unitPrice: t.unitPrice,
+          quantity: t.quantity,
+          currency: t.currency,
+          dollarRate: t.dollarRate,
+          amountUSD: t.amountUSD,
+          amountBs: t.amountBs,
+        });
         const transaction = await tx.transaction.create({
           data: {
             categoryId: t.categoryId,
@@ -203,8 +264,8 @@ export class TransactionService {
             costItemId: t.costItemId,
             quantity: t.quantity,
             unitPrice: t.unitPrice,
-            amountUSD: t.amountUSD,
-            amountBs: t.amountBs,
+            amountUSD: amounts.amountUSD,
+            amountBs: amounts.amountBs,
             status: t.status,
             paymentMethod: t.paymentMethod,
             currency: t.currency,
@@ -221,12 +282,12 @@ export class TransactionService {
         if (t.status === 'COMPLETED') {
           const category = categoryMap.get(t.categoryId)!;
           const sign = category.flowDirection === FlowDirection.INFLOW ? 1 : -1;
-          deltaUSD += sign * t.amountUSD;
-          deltaBs += sign * t.amountBs;
+          deltaUSD = deltaUSD.add(amounts.amountUSD.mul(sign));
+          deltaBs = deltaBs.add(amounts.amountBs.mul(sign));
         }
       }
 
-      if (deltaUSD !== 0 || deltaBs !== 0) {
+      if (!isZero(deltaUSD) || !isZero(deltaBs)) {
         await tx.company.update({
           where: { id: companyId },
           data: {
@@ -240,13 +301,53 @@ export class TransactionService {
     });
   }
 
-  async getTransactionsByCompany(companyId: string, page = 1, limit = 50) {
+  private buildWhere(
+    companyId: string,
+    filters?: Partial<GetTransactionsFilteredDto>,
+  ): Prisma.TransactionWhereInput {
+    const where: Prisma.TransactionWhereInput = {
+      companyId,
+      isRemoved: false,
+    };
+
+    if (!filters) return where;
+
+    const { startDate, endDate, categoryId, status, itemId } = filters;
+
+    if (startDate || endDate) {
+      const range: Prisma.DateTimeFilter = {};
+      if (startDate) {
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+        range.gte = start;
+      }
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        range.lte = end;
+      }
+      where.paymentDate = range;
+    }
+
+    if (categoryId) where.categoryId = categoryId;
+    if (status) where.status = status;
+    if (itemId) where.itemId = itemId;
+
+    return where;
+  }
+
+  async getTransactionsByCompany(
+    companyId: string,
+    filters?: Partial<GetTransactionsFilteredDto>,
+  ) {
+    const page = filters?.page ?? 1;
+    const limit = filters?.limit ?? 50;
     const skip = (page - 1) * limit;
-    const where = { companyId, isRemoved: false };
+    const where = this.buildWhere(companyId, filters);
 
     const data = await this.prisma.transaction.findMany({
       where,
-      orderBy: { paymentDate: 'desc' },
+      orderBy: [{ paymentDate: 'desc' }, { createdAt: 'desc' }],
       include: {
         category: true,
         item: true,
@@ -320,6 +421,25 @@ export class TransactionService {
 
       if (data.costItemId) {
         await this.assertItemForCompany(tx, data.costItemId, companyId);
+      }
+
+      // Validar que el ítem coincida con el itemType de la categoría
+      const effectiveCategoryId = data.categoryId ?? transaction.categoryId;
+      const effectiveItemId = data.itemId ?? transaction.itemId;
+      if (effectiveCategoryId && effectiveItemId) {
+        const category = await tx.category.findUnique({
+          where: { id: effectiveCategoryId, isRemoved: false },
+        });
+        if (category && category.itemType !== 'NONE') {
+          const item = await tx.item.findUnique({
+            where: { id: effectiveItemId, isRemoved: false },
+          });
+          if (item && item.type !== category.itemType) {
+            throw new BadRequestException(
+              `La categoría "${category.name}" solo acepta ítems tipo ${category.itemType}. El ítem "${item.name}" es tipo ${item.type}.`,
+            );
+          }
+        }
       }
 
       if (data.amount !== undefined && (!data.currency || !data.dollarRate)) {
@@ -482,8 +602,8 @@ export class TransactionService {
       if (data.paymentReference !== undefined)
         updatePayload.paymentReference = data.paymentReference;
 
-      let newAmountUSD = Number(transaction.amountUSD);
-      let newAmountBs = Number(transaction.amountBs);
+      let newAmountUSD: Money = dec(transaction.amountUSD);
+      let newAmountBs: Money = dec(transaction.amountBs);
 
       if (
         data.amount !== undefined &&
@@ -505,6 +625,43 @@ export class TransactionService {
         if (data.currency !== undefined) updatePayload.currency = data.currency;
         if (data.dollarRate !== undefined)
           updatePayload.dollarRate = data.dollarRate;
+
+        const resolvedUnitPrice =
+          data.unitPrice !== undefined
+            ? data.unitPrice
+            : transaction.unitPrice != null
+              ? Number(transaction.unitPrice)
+              : null;
+        const resolvedQuantity =
+          data.quantity !== undefined
+            ? data.quantity
+            : (transaction.quantity ?? 0);
+        const resolvedCurrency = data.currency ?? transaction.currency;
+        const resolvedDollarRate =
+          data.dollarRate !== undefined
+            ? data.dollarRate
+            : Number(transaction.dollarRate);
+        const priceQuantityEdit =
+          data.unitPrice !== undefined || data.quantity !== undefined;
+
+        if (
+          priceQuantityEdit &&
+          resolvedUnitPrice != null &&
+          resolvedQuantity > 0
+        ) {
+          const { amountUSD, amountBs } = this.resolveAmounts({
+            unitPrice: resolvedUnitPrice,
+            quantity: resolvedQuantity,
+            currency: resolvedCurrency,
+            dollarRate: resolvedDollarRate,
+            amountUSD: 0,
+            amountBs: 0,
+          });
+          newAmountUSD = amountUSD;
+          newAmountBs = amountBs;
+          updatePayload.amountUSD = amountUSD;
+          updatePayload.amountBs = amountBs;
+        }
       }
 
       const newStatus = data.status ?? transaction.status;
@@ -522,19 +679,20 @@ export class TransactionService {
         newSign = newCategory.flowDirection === FlowDirection.INFLOW ? 1 : -1;
       }
 
+      const zeroMoney: Money = new Prisma.Decimal(0);
       const oldEffect = wasCompleted
         ? {
-            usd: oldSign * Number(transaction.amountUSD),
-            bs: oldSign * Number(transaction.amountBs),
+            usd: dec(transaction.amountUSD).mul(oldSign),
+            bs: dec(transaction.amountBs).mul(oldSign),
           }
-        : { usd: 0, bs: 0 };
+        : { usd: zeroMoney, bs: zeroMoney };
       const newEffect =
         newStatus === 'COMPLETED'
-          ? { usd: newSign * newAmountUSD, bs: newSign * newAmountBs }
-          : { usd: 0, bs: 0 };
+          ? { usd: newAmountUSD.mul(newSign), bs: newAmountBs.mul(newSign) }
+          : { usd: zeroMoney, bs: zeroMoney };
 
-      const deltaUSD = newEffect.usd - oldEffect.usd;
-      const deltaBs = newEffect.bs - oldEffect.bs;
+      const deltaUSD = newEffect.usd.sub(oldEffect.usd);
+      const deltaBs = newEffect.bs.sub(oldEffect.bs);
 
       const updated = await tx.transaction.update({
         where: { id },
@@ -547,7 +705,7 @@ export class TransactionService {
         },
       });
 
-      if (deltaUSD !== 0 || deltaBs !== 0) {
+      if (!deltaUSD.isZero() || !deltaBs.isZero()) {
         await tx.company.update({
           where: { id: companyId },
           data: {
@@ -613,8 +771,8 @@ export class TransactionService {
       if (transaction.status === 'COMPLETED') {
         const sign =
           transaction.category.flowDirection === FlowDirection.INFLOW ? 1 : -1;
-        const deltaUSD = -(sign * Number(transaction.amountUSD));
-        const deltaBs = -(sign * Number(transaction.amountBs));
+        const deltaUSD = dec(transaction.amountUSD).mul(sign).neg();
+        const deltaBs = dec(transaction.amountBs).mul(sign).neg();
 
         await tx.company.update({
           where: { id: companyId },
@@ -631,8 +789,8 @@ export class TransactionService {
 
   async getTransactionsByDateRange(
     companyId: string,
-    startDate: Date,
-    endDate: Date,
+    startDate: string | Date,
+    endDate: string | Date,
   ) {
     const start = new Date(startDate);
     const end = new Date(endDate);
@@ -643,12 +801,23 @@ export class TransactionService {
       where: {
         companyId,
         isRemoved: false,
-        paymentDate: {
-          gte: start,
-          lte: end,
-        },
+        OR: [
+          {
+            paymentDate: {
+              gte: start,
+              lte: end,
+            },
+          },
+          {
+            paymentDate: null,
+            createdAt: {
+              gte: start,
+              lte: end,
+            },
+          },
+        ],
       },
-      include: { category: true },
+      include: { category: true, item: true },
     });
   }
 
@@ -721,6 +890,34 @@ export class TransactionService {
 
     return this.prisma.transaction.findMany({
       where: { companyId, categoryId, isRemoved: false },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        category: true,
+        item: true,
+        batch: { include: { item: true } },
+        costItem: true,
+      },
+    });
+  }
+
+  async getTransactionsByStatus(companyId: string, status: TransactionStatus) {
+    return this.prisma.transaction.findMany({
+      where: { companyId, status, isRemoved: false },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        category: true,
+        item: true,
+        batch: { include: { item: true } },
+        costItem: true,
+      },
+    });
+  }
+
+  async getTransactionsByItem(companyId: string, itemId: string) {
+    await this.assertItemForCompany(this.prisma, itemId, companyId);
+
+    return this.prisma.transaction.findMany({
+      where: { companyId, itemId, isRemoved: false },
       orderBy: { createdAt: 'desc' },
       include: {
         category: true,

@@ -6,6 +6,14 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
+interface GroupedMarginRow {
+  date: Date;
+  totalSales: number;
+  totalSalesBs: number;
+  totalVariableCosts: number;
+  totalVariableCostsBs: number;
+}
+
 @Injectable()
 export class ContributionMarginService {
   constructor(private prisma: PrismaService) {}
@@ -70,6 +78,66 @@ export class ContributionMarginService {
       globalMarginRatio,
       globalMarginRatioBs,
     };
+  }
+
+  async getGlobalContributionMarginGrouped(
+    companyId: string,
+    start: Date,
+    end: Date,
+  ) {
+    const diffTime = end.getTime() - start.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays > 365) {
+      return [];
+    }
+
+    const interval = diffDays <= 30 ? '1 day' : '1 month';
+    const truncFn = diffDays <= 30 ? 'day' : 'month';
+
+    const rows = await this.prisma.$queryRaw<GroupedMarginRow[]>`
+      SELECT
+        date_trunc(${truncFn}, d.bucket)::date AS date,
+        COALESCE(SUM(t.amount_usd) FILTER (WHERE c.flow_direction = 'INFLOW'), 0) AS "totalSales",
+        COALESCE(SUM(t.amount_bs) FILTER (WHERE c.flow_direction = 'INFLOW'), 0) AS "totalSalesBs",
+        COALESCE(SUM(t.amount_usd) FILTER (WHERE c.flow_direction = 'OUTFLOW' AND c.is_variable = true), 0) AS "totalVariableCosts",
+        COALESCE(SUM(t.amount_bs) FILTER (WHERE c.flow_direction = 'OUTFLOW' AND c.is_variable = true), 0) AS "totalVariableCostsBs"
+      FROM generate_series(${start}::date, ${end}::date, ${interval}::interval) d(bucket)
+      LEFT JOIN transactions t
+        ON t.payment_date >= d.bucket
+        AND t.payment_date < d.bucket + ${interval}::interval
+        AND t.company_id = ${companyId}::uuid
+        AND t.status = 'COMPLETED'
+        AND t.is_removed = false
+      LEFT JOIN categories c ON c.id = t.category_id
+      GROUP BY 1
+      ORDER BY 1;
+    `;
+
+    return rows.map((row) => {
+      const totalSales = Number(row.totalSales) || 0;
+      const totalSalesBs = Number(row.totalSalesBs) || 0;
+      const totalVariableCosts = Number(row.totalVariableCosts) || 0;
+      const totalVariableCostsBs = Number(row.totalVariableCostsBs) || 0;
+
+      const totalMargin = totalSales - totalVariableCosts;
+      const totalMarginBs = totalSalesBs - totalVariableCostsBs;
+      const globalMarginRatio = totalSales > 0 ? totalMargin / totalSales : 0;
+      const globalMarginRatioBs =
+        totalSalesBs > 0 ? totalMarginBs / totalSalesBs : 0;
+
+      return {
+        date: row.date,
+        totalSales,
+        totalSalesBs,
+        totalVariableCosts,
+        totalVariableCostsBs,
+        totalMargin,
+        totalMarginBs,
+        globalMarginRatio: Number(globalMarginRatio.toFixed(2)),
+        globalMarginRatioBs: Number(globalMarginRatioBs.toFixed(2)),
+      };
+    });
   }
 
   async getContributionMarginByProductDates(

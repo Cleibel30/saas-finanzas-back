@@ -208,4 +208,66 @@ export class GrossProfitService {
       },
     };
   }
+
+  async getBatchGrossProfit(batchId: string, companyId: string) {
+    const batch = await this.prisma.productionBatch.findUnique({
+      where: { id: batchId, isRemoved: false, companyId },
+      include: { item: true },
+    });
+
+    if (!batch) throw new NotFoundException('Production batch not found.');
+
+    const salesAgg = await this.prisma.transaction.aggregate({
+      _sum: { amountUSD: true, amountBs: true, quantity: true },
+      where: {
+        batchId,
+        companyId,
+        status: TransactionStatus.COMPLETED,
+        isRemoved: false,
+        category: { flowDirection: FlowDirection.INFLOW },
+      },
+    });
+
+    const cogsAgg = await this.prisma.transaction.aggregate({
+      _sum: { amountUSD: true, amountBs: true },
+      where: {
+        batchId,
+        companyId,
+        status: TransactionStatus.COMPLETED,
+        isRemoved: false,
+        category: { flowDirection: FlowDirection.OUTFLOW, isCogs: true },
+      },
+    });
+
+    const netSales = Number(salesAgg._sum.amountUSD) || 0;
+    const netSalesBs = Number(salesAgg._sum.amountBs) || 0;
+    const totalUnitsSold = Number(salesAgg._sum.quantity) || 0;
+    const cogs = Number(cogsAgg._sum.amountUSD) || 0;
+    const cogsBs = Number(cogsAgg._sum.amountBs) || 0;
+    const grossProfit = netSales - cogs;
+    const grossProfitBs = netSalesBs - cogsBs;
+    const grossMarginRatio = netSales > 0 ? grossProfit / netSales : 0;
+
+    const avgUnitPrice = totalUnitsSold > 0 ? netSales / totalUnitsSold : 0;
+    const avgUnitCogs = totalUnitsSold > 0 ? cogs / totalUnitsSold : 0;
+
+    return {
+      batchId: batch.id,
+      itemName: batch.item.name,
+      batchQuantity: batch.quantity,
+      batchStatus: batch.status,
+      netSales,
+      netSalesBs,
+      cogs,
+      cogsBs,
+      grossProfit,
+      grossProfitBs,
+      grossMarginRatio: Number(grossMarginRatio.toFixed(2)),
+      unitAnalysis: {
+        avgUnitPrice: Number(avgUnitPrice.toFixed(2)),
+        avgUnitCogs: Number(avgUnitCogs.toFixed(2)),
+        unitGrossProfit: Number((avgUnitPrice - avgUnitCogs).toFixed(2)),
+      },
+    };
+  }
 }

@@ -300,12 +300,29 @@ ProductionBatch 1──N Transaction
 | Endpoint | Auth | Descripción |
 |----------|------|-------------|
 | `POST /create/:companyId` | JWT + Company | Bulk create (decrementa stock si aplica) |
-| `GET /get-all/:companyId` | JWT + Company | Listar todas |
+| `GET /get-all/:companyId` | JWT + Company | Listar todas con filtros combinables + paginación |
 | `GET /get-by-id/:companyId/:transactionId` | JWT + Company | Por ID |
 | `PATCH /update/:companyId/:transactionId` | JWT + Company | Actualizar (valida FKs, recalcula montos) |
 | `DELETE /delete/:companyId/:transactionId` | JWT + Company | Soft delete |
-| `GET /get-by-date-range/:companyId/:startDate/:endDate` | JWT + Company | Rango de fechas |
-| `GET /get-by-date-category/:companyId/:categoryId` | JWT + Company | Por categoría + fecha |
+
+**`GET /get-all/:companyId`** — Lista transacciones de la empresa con filtros opcionales combinables (AND) y paginación. Respuesta: `{ data, meta }`.
+
+Query params:
+| Parámetro | Tipo | Descripción |
+|-----------|------|-------------|
+| `page` | number (≥1) | Página, default `1` |
+| `limit` | number (1–500) | Tamaño de página, default `50` |
+| `startDate` | string `YYYY-MM-DD` | Filtra `paymentDate >= startDate` (inicio de día) |
+| `endDate` | string `YYYY-MM-DD` | Filtra `paymentDate <= endDate` (fin de día) |
+| `categoryId` | UUID | Filtra por categoría |
+| `status` | `PENDING \| COMPLETED` | Filtra por estado |
+| `itemId` | UUID | Filtra por ítem |
+
+Reglas:
+- Si `startDate` y `endDate` vienen juntos, se valida `startDate <= endDate`.
+- Los filtros se combinan con AND; si no se pasa ninguno, devuelve todas las transacciones activas paginadas.
+- Respuesta paginada: `{ data: Transaction[], meta: { page, limit, total, totalPages } }`.
+- Los endpoints `get-by-date-range`, `get-by-date-category`, `get-by-status` y `get-by-item` quedaron deprecados en favor de `get-all` con query params.
 
 ### Production Batch (`/production-batch/*`)
 | Endpoint | Auth | Descripción |
@@ -334,7 +351,55 @@ ProductionBatch 1──N Transaction
 ### Balance Point (`/balance-point/*`)
 | Endpoint | Auth | Descripción |
 |----------|------|-------------|
-| `GET /:companyId/:startDate/:endDate` | JWT + Company | Punto de equilibrio: Costos Fijos / Ratio MC Global |
+| `GET /:companyId/:startDate/:endDate` | JWT + Company | Punto de equilibrio global: Costos Fijos / Ratio MC Global |
+| `GET /product/:itemId/:companyId/:startDate/:endDate` | JWT + Company | Punto de equilibrio por producto (costos fijos asignados proporcionalmente) |
+| `GET /batch/:batchId/:companyId` | JWT + Company | Punto de equilibrio por lote de producción (costos fijos asignados proporcionalmente) |
+| `GET /service/:itemId/:companyId/:startDate/:endDate` | JWT + Company | Punto de equilibrio por servicio (costos fijos asignados proporcionalmente) |
+
+#### Respuesta de `breakEven`
+
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| `breakEvenStatus` | `'no_sales' \| 'negative_margin' \| 'safe' \| 'at_risk'` | Estado del punto de equilibrio. `no_sales` = sin ventas en el período. |
+| `dataConfidence` | `'insufficient' \| 'estimated' \| 'low' \| 'medium' \| 'high'` | Confianza del cálculo según cantidad de transacciones INFLOW. |
+| `transactionCount` | `number` | Cantidad de transacciones INFLOW del período (usado para determinar `dataConfidence`). |
+| `salesVolumeRequired` / `salesVolumeRequiredBs` | `number \| null` | Ventas mínimas en monto para cubrir costos. `null` = margen negativo o sin ventas. |
+| `unitsRequired` / `unitsRequiredBs` | `number \| null` | Unidades mínimas a vender para alcanzar el punto de equilibrio. `null` = margen negativo o sin datos. |
+| `isEstimated` | `boolean` | `true` si el BEP fue estimado usando `basePrice` (sin ventas reales). `false` si usa ratio MC real. |
+| `isSafe` | `boolean \| null` | `true` si ventas ≥ BEP. `null` si `breakEvenStatus = 'no_sales'`. `false` si por debajo. |
+| `isSafeUsd` / `isSafeBs` | `boolean` | Seguridad **por moneda**: ventas de esa moneda ≥ su propio equilibrio (y margen > 0). |
+| `distanceToBreakEven` / `distanceToBreakEvenBs` | `number \| null` | Ventas actuales − equilibrio. Positivo = por encima; negativo = por debajo; `null` = sin ventas o margen negativo. |
+| `distanceToBreakEvenUnits` | `number \| null` | Unidades vendidas − unidades de equilibrio. Positivo = por encima; negativo = por debajo; `null` = sin datos. |
+| `marginStatus` | `'negative' \| 'safe' \| 'at_risk' \| 'no_sales'` | Estado del margen. `no_sales` = sin ventas registradas. |
+| `marginStatusUsd` / `marginStatusBs` | `'negative' \| 'safe' \| 'at_risk'` | Estado por moneda. |
+
+#### Lógica de `dataConfidence`
+
+| Valor | Cantidad de transacciones INFLOW | BEP calculado |
+|-------|--------------------------------|---------------|
+| `insufficient` | 0 | `null` (sin datos para estimar) |
+| `estimated` | 0 pero hay `basePrice` en el ítem | Estimado con `basePrice` y costos variables registrados |
+| `low` | 1-4 | Ratio MC real (poco confiable, puede variar mucho) |
+| `medium` | 5-19 | Ratio MC real (razonable) |
+| `high` | 20+ | Ratio MC real (confiable) |
+
+#### Estimación de BEP sin ventas
+
+Para **producto**, **lote** y **servicio**: cuando `transactionCount = 0` y el ítem tiene `basePrice`, se calcula un BEP estimado:
+
+```
+MC Unitario Estimado = basePrice - Costo Variable Unitario (de costos registrados)
+Ratio MC Estimado = MC Unitario / basePrice
+BEP Estimado = Costos Fijos Asignados / Ratio MC Estimado
+```
+
+El campo `isEstimated: true` indica que el BEP es una **estimación**, no un cálculo con ventas reales. Se actualizará con las primeras ventas.
+
+Para el endpoint **global**: no se estima BEP cuando no hay ventas (la información no sería precisa por la mezcla de múltiples productos con diferentes precios).
+
+#### Causa real de divergencias USD/Bs (documentado para el frontend)
+
+`amountUSD` y `amountBs` se guardan por transacción con un `dollarRate` del día, que **varía entre registros**. Por eso las tasas implícitas difieren por categoría, p. ej. ventas ~756 Bs/USD vs costos fijos ~771 Bs/USD. Cuando el margen de seguridad es marginal, esto hace que **una moneda diga "safe" y la otra "at_risk"** (distancias con signos opuestos). No es un bug del endpoint: cada moneda es aritméticamente correcta en sus propios datos. El endpoint ahora lo **expone** (campos por moneda) en lugar de ocultarlo. La solución de fondo es de datos: reconciliar los `dollarRate` de costos fijos contra la tasa de ventas del período.
 
 ### Finance Chat (`/finance-chat/*`)
 | Endpoint | Auth | Rate Limit | Descripción |
@@ -440,6 +505,17 @@ Toda transacción almacena ambos montos:
 
 ### 5.4 Categorías por Defecto
 El endpoint `GET /category/list/:companyId` retorna las categorías propias de la compañía **más** aquellas con `isDefault: true` (categorías globales del sistema sin `companyId`).
+
+### 5.4.1 Scope de Categoría (`itemType`)
+Cada categoría tiene un campo `itemType` (`CategoryItemScope`) que indica qué tipo de ítem acepta:
+
+| Valor | Descripción | Ejemplo |
+|-------|-------------|---------|
+| `PRODUCT` | Solo acepta ítems tipo PRODUCT | "Venta de producto", "Materia prima" |
+| `SERVICE` | Solo acepta ítems tipo SERVICE | "Venta de servicio", "Consultoría" |
+| `NONE` | No requiere ítem (default) | "Alquiler", "Servicios públicos" |
+
+**Validación en transacciones**: Al crear o actualizar una transacción, si la categoría tiene `itemType != NONE`, se valida que el `itemId` sea del tipo correcto. Si no coincide, se lanza `400 Bad Request` con un mensaje descriptivo.
 
 ### 5.5 Búsqueda Difusa (Fuzzy Search)
 Estrategia de dos niveles:

@@ -34,3 +34,15 @@ export class GrossProfitItemDto {
   @IsNotEmpty()
   endDate!: Date;
 }
+
+export class GrossProfitBatchDto {
+  @IsString()
+  @IsNotEmpty()
+  @IsUUID()
+  batchId!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @IsUUID()
+  companyId!: string;
+}

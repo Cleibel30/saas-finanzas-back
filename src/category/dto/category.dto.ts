@@ -1,9 +1,10 @@
-import { CategoryType } from '@prisma/client';
+import { CategoryItemScope, CategoryType } from '@prisma/client';
 import { FlowDirection } from '@prisma/client';
 import {
   IsBoolean,
   IsEnum,
   IsNotEmpty,
+  IsOptional,
   IsString,
   MaxLength,
   MinLength,
@@ -28,12 +29,17 @@ export class CreateCategoryDto {
   })
   flowDirection!: FlowDirection;
 
+  @IsEnum(CategoryItemScope)
+  @IsOptional()
+  itemType?: CategoryItemScope;
+
   @IsBoolean()
   isVariable?: boolean;
 
   @IsBoolean()
   isCogs!: boolean;
 
+  // @IsOptional()
   @IsBoolean()
   isDirectCost?: boolean;
 }
@@ -54,12 +60,19 @@ export class UpdateCategoryDto {
   })
   flowDirection?: FlowDirection;
 
+  @IsEnum(CategoryItemScope)
+  @IsOptional()
+  itemType?: CategoryItemScope;
+
+  @IsOptional()
   @IsBoolean()
   isVariable?: boolean;
 
+  @IsOptional()
   @IsBoolean()
   isCogs?: boolean;
 
+  @IsOptional()
   @IsBoolean()
   isDirectCost?: boolean;
 }

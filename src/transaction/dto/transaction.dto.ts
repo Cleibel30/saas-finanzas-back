@@ -190,3 +190,13 @@ export class GetTransactionsByDateRangeDto {
   @IsNotEmpty()
   endDate!: Date;
 }
+
+export class GetTransactionsByStatusDto {
+  @IsUUID()
+  @IsNotEmpty()
+  companyId!: string;
+
+  @IsEnum(TransactionStatus)
+  @IsNotEmpty()
+  status!: TransactionStatus;
+}

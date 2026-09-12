@@ -3,6 +3,7 @@ export interface FuzzyCategoryResult {
   name: string;
   type: string;
   flowDirection: string;
+  itemType: string;
   isCogs: boolean;
   isDirectCost: boolean;
   isDefault: boolean;

@@ -17,11 +17,23 @@ export class ContributionMarginController {
   async getGlobalContributionMargin(
     @Param() params: GeneralContributionMargin,
   ) {
-    return this.contributionMarginService.getGlobalContributionMargin(
-      params.companyId,
-      params.startDate,
-      params.endDate,
-    );
+    const start = new Date(params.startDate + 'T00:00:00.000Z');
+    const end = new Date(params.endDate + 'T23:59:59.999Z');
+
+    const [totals, grouped] = await Promise.all([
+      this.contributionMarginService.getGlobalContributionMargin(
+        params.companyId,
+        params.startDate,
+        params.endDate,
+      ),
+      this.contributionMarginService.getGlobalContributionMarginGrouped(
+        params.companyId,
+        start,
+        end,
+      ),
+    ]);
+
+    return { ...totals, grouped };
   }
 
   @UseGuards(AuthGuard('jwt'), ValidateCompanyGuard)
