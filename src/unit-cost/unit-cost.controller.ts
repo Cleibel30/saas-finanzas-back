@@ -2,7 +2,11 @@ import { Controller, Get, Param, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ValidateCompanyGuard } from '@/company/guards/validate-company/validate-company.guard';
 import { UnitCostService } from './unit-cost.service';
-import { UnitCostBatchDto, UnitCostProductDto } from './dto/unit-cost.dto';
+import {
+  UnitCostProductDto,
+  UnitCostBatchDateRangeDto,
+  UnitCostItemDateRangeDto,
+} from './dto/unit-cost.dto';
 
 @Controller('unit-cost')
 export class UnitCostController {
@@ -10,7 +14,7 @@ export class UnitCostController {
 
   @UseGuards(AuthGuard('jwt'), ValidateCompanyGuard)
   @Get('batch/:batchId/:companyId')
-  async getBatchUnitCost(@Param() params: UnitCostBatchDto) {
+  async getBatchUnitCost(@Param() params: UnitCostBatchDateRangeDto) {
     return this.unitCostService.getBatchUnitCost(
       params.batchId,
       params.companyId,
@@ -27,11 +31,37 @@ export class UnitCostController {
   }
 
   @UseGuards(AuthGuard('jwt'), ValidateCompanyGuard)
+  @Get('product/:itemId/:companyId/:startDate/:endDate')
+  async getProductUnitCostWithDateRange(
+    @Param() params: UnitCostItemDateRangeDto,
+  ) {
+    return this.unitCostService.getProductUnitCostWithDateRange(
+      params.itemId,
+      params.companyId,
+      params.startDate,
+      params.endDate,
+    );
+  }
+
+  @UseGuards(AuthGuard('jwt'), ValidateCompanyGuard)
   @Get('service/:itemId/:companyId')
   async getServiceUnitCost(@Param() params: UnitCostProductDto) {
     return this.unitCostService.getServiceUnitCost(
       params.itemId,
       params.companyId,
+    );
+  }
+
+  @UseGuards(AuthGuard('jwt'), ValidateCompanyGuard)
+  @Get('service/:itemId/:companyId/:startDate/:endDate')
+  async getServiceUnitCostWithDateRange(
+    @Param() params: UnitCostItemDateRangeDto,
+  ) {
+    return this.unitCostService.getServiceUnitCostWithDateRange(
+      params.itemId,
+      params.companyId,
+      params.startDate,
+      params.endDate,
     );
   }
 }

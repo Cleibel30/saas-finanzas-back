@@ -34,13 +34,13 @@ export class PriceMarginService {
         itemId,
         companyId,
       );
-      if (unitCost.totalBatches === 0) {
+      if (unitCost.totalSold === 0) {
         throw new BadRequestException(
-          'No closed batches found for this product. Cannot calculate unit cost.',
+          'No units sold found for this product. Cannot calculate unit cost.',
         );
       }
-      costUSD = unitCost.weightedAvgUnitCostUSD;
-      costBs = unitCost.weightedAvgUnitCostBs;
+      costUSD = unitCost.avgUnitCostUSD;
+      costBs = unitCost.avgUnitCostBs;
       itemName = unitCost.itemName;
     } else {
       const unitCost = await this.unitCostService.getServiceUnitCost(
