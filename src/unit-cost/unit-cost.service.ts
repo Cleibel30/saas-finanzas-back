@@ -97,9 +97,10 @@ export class UnitCostService {
     if (item.type === ItemType.SERVICE)
       throw new BadRequestException('The specified item is a service.');
 
-    const dateFilter = startDate && endDate
-      ? { paymentDate: { gte: new Date(startDate), lte: new Date(endDate) } }
-      : {};
+    const dateFilter =
+      startDate && endDate
+        ? { paymentDate: { gte: new Date(startDate), lte: new Date(endDate) } }
+        : {};
 
     const outflowAgg = await this.prisma.transaction.aggregate({
       _sum: { amountUSD: true, amountBs: true },
@@ -148,7 +149,12 @@ export class UnitCostService {
     startDate: string,
     endDate: string,
   ): Promise<ProductUnitCostResponse> {
-    const current = await this.getProductUnitCost(itemId, companyId, startDate, endDate);
+    const current = await this.getProductUnitCost(
+      itemId,
+      companyId,
+      startDate,
+      endDate,
+    );
     const { chartData, isValid } = await this.getProductChartData(
       itemId,
       companyId,
@@ -177,9 +183,10 @@ export class UnitCostService {
     if (item.type === ItemType.PRODUCT)
       throw new BadRequestException('The specified item is not a service.');
 
-    const dateFilter = startDate && endDate
-      ? { paymentDate: { gte: new Date(startDate), lte: new Date(endDate) } }
-      : {};
+    const dateFilter =
+      startDate && endDate
+        ? { paymentDate: { gte: new Date(startDate), lte: new Date(endDate) } }
+        : {};
 
     const outflowAgg = await this.prisma.transaction.aggregate({
       _sum: { amountUSD: true, amountBs: true },
@@ -232,7 +239,12 @@ export class UnitCostService {
     startDate: string,
     endDate: string,
   ): Promise<ServiceUnitCostResponse> {
-    const current = await this.getServiceUnitCost(itemId, companyId, startDate, endDate);
+    const current = await this.getServiceUnitCost(
+      itemId,
+      companyId,
+      startDate,
+      endDate,
+    );
     const { chartData, isValid } = await this.getServiceChartData(
       itemId,
       companyId,

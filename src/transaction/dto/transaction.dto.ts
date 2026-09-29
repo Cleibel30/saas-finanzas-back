@@ -127,6 +127,16 @@ export class UpdateTransactionDto {
   @IsNumber()
   @IsOptional()
   @Type(() => Number)
+  amountUSD?: number;
+
+  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  amountBs?: number;
+
+  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
   amount?: number;
 
   @IsNumber()

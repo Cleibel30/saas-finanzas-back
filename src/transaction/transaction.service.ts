@@ -442,9 +442,24 @@ export class TransactionService {
         }
       }
 
-      if (data.amount !== undefined && (!data.currency || !data.dollarRate)) {
+      const hasDirectAmounts =
+        data.amountUSD !== undefined && data.amountBs !== undefined;
+      const hasComputedAmount =
+        data.amount !== undefined &&
+        data.currency &&
+        data.dollarRate !== undefined;
+
+      if (hasComputedAmount && !hasDirectAmounts) {
+        if (!data.currency || data.dollarRate === undefined) {
+          throw new BadRequestException(
+            'Para actualizar el monto calculado, debe proporcionar currency y dollarRate.',
+          );
+        }
+      }
+
+      if (hasDirectAmounts && hasComputedAmount) {
         throw new BadRequestException(
-          'Para actualizar el monto, debe proporcionar también currency y dollarRate.',
+          'No puede proporcionar amountUSD/amountBs y amount/currency/dollarRate simultáneamente.',
         );
       }
 
@@ -605,22 +620,26 @@ export class TransactionService {
       let newAmountUSD: Money = dec(transaction.amountUSD);
       let newAmountBs: Money = dec(transaction.amountBs);
 
-      if (
-        data.amount !== undefined &&
-        data.currency &&
-        data.dollarRate !== undefined
-      ) {
+      if (hasDirectAmounts) {
+        newAmountUSD = dec(data.amountUSD!);
+        newAmountBs = dec(data.amountBs!);
+        updatePayload.amountUSD = newAmountUSD;
+        updatePayload.amountBs = newAmountBs;
+        if (data.currency !== undefined) updatePayload.currency = data.currency;
+        if (data.dollarRate !== undefined)
+          updatePayload.dollarRate = data.dollarRate;
+      } else if (hasComputedAmount) {
         const { amountUSD, amountBs } = this.calculateAmounts(
-          data.amount,
-          data.currency,
-          data.dollarRate,
+          data.amount!,
+          data.currency!,
+          data.dollarRate!,
         );
         newAmountUSD = amountUSD;
         newAmountBs = amountBs;
         updatePayload.amountUSD = amountUSD;
         updatePayload.amountBs = amountBs;
-        updatePayload.currency = data.currency;
-        updatePayload.dollarRate = data.dollarRate;
+        updatePayload.currency = data.currency!;
+        updatePayload.dollarRate = data.dollarRate!;
       } else {
         if (data.currency !== undefined) updatePayload.currency = data.currency;
         if (data.dollarRate !== undefined)
